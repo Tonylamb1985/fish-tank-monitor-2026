@@ -43,7 +43,6 @@ views:
 
       # ── HEADER STATUS BANNER ──────────────────────────────────────────────
       - type: custom:mushroom-template-card
-        grid-column: 1 / -1
         primary: "🐟 Freshwater Community Tank — 55 Gallon"
         secondary: "{{ state_attr('sensor.fish_tank_overall_status','message') }}"
         icon: mdi:fishbowl
@@ -53,6 +52,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: 1 / -1;
               background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(16,122,60,0.07));
               border: 1px solid rgba(34,197,94,0.35);
               border-radius: 16px;
@@ -61,7 +61,6 @@ views:
 
       # ── HEALTH SCORE ──────────────────────────────────────────────────────
       - type: custom:apexcharts-card
-        grid-column: span 1
         header:
           show: true
           title: "💚 Tank Health Score"
@@ -102,6 +101,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: span 1;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(34,197,94,0.3);
               border-radius: 14px;
@@ -109,7 +109,6 @@ views:
 
       # ── TEMPERATURE GAUGE ─────────────────────────────────────────────────
       - type: custom:apexcharts-card
-        grid-column: span 1
         header:
           show: true
           title: "🌡 Temperature"
@@ -150,6 +149,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: span 1;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(255,112,67,0.3);
               border-radius: 14px;
@@ -157,7 +157,6 @@ views:
 
       # ── pH GAUGE ──────────────────────────────────────────────────────────
       - type: custom:apexcharts-card
-        grid-column: span 1
         header:
           show: true
           title: "⚗ pH Level"
@@ -198,6 +197,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: span 1;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(171,71,188,0.3);
               border-radius: 14px;
@@ -205,7 +205,6 @@ views:
 
       # ── DISSOLVED OXYGEN GAUGE ────────────────────────────────────────────
       - type: custom:apexcharts-card
-        grid-column: span 1
         header:
           show: true
           title: "🫧 Dissolved O2"
@@ -246,6 +245,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: span 1;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(38,198,218,0.3);
               border-radius: 14px;
@@ -253,7 +253,6 @@ views:
 
       # ── NITROGEN CYCLE BARS ───────────────────────────────────────────────
       - type: entities
-        grid-column: 1 / 3
         title: "☣ Nitrogen Cycle"
         entities:
           - type: custom:bar-card
@@ -310,6 +309,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: 1 / 3;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(239,83,80,0.25);
               border-radius: 14px;
@@ -317,7 +317,6 @@ views:
 
       # ── WATER HARDNESS + QUALITY ──────────────────────────────────────────
       - type: entities
-        grid-column: 3 / 5
         title: "💧 Water Hardness & Quality"
         entities:
           - type: custom:bar-card
@@ -372,6 +371,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: 3 / 5;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(41,182,246,0.25);
               border-radius: 14px;
@@ -379,7 +379,6 @@ views:
 
       # ── CO₂ (Planted Tank) ────────────────────────────────────────────────
       - type: custom:apexcharts-card
-        grid-column: span 2
         header:
           show: true
           title: "🌿 CO₂ Level (Planted Tank - ideal: 15-30 ppm)"
@@ -420,6 +419,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: span 2;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(34,197,94,0.3);
               border-radius: 14px;
@@ -427,7 +427,6 @@ views:
 
       # ── TEMPERATURE HISTORY ───────────────────────────────────────────────
       - type: custom:mini-graph-card
-        grid-column: 1 / 3
         name: "Temperature - Last 24h"
         icon: mdi:thermometer-water
         entities:
@@ -455,6 +454,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: 1 / 3;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(255,112,67,0.25);
               border-radius: 14px;
@@ -462,7 +462,6 @@ views:
 
       # ── pH HISTORY ────────────────────────────────────────────────────────
       - type: custom:mini-graph-card
-        grid-column: 3 / 5
         name: "pH - Last 24h"
         icon: mdi:ph
         entities:
@@ -490,6 +489,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: 3 / 5;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(171,71,188,0.25);
               border-radius: 14px;
@@ -497,7 +497,6 @@ views:
 
       # ── EQUIPMENT CONTROL ─────────────────────────────────────────────────
       - type: grid
-        grid-column: 1 / 3
         title: "⚙️ Equipment Control"
         columns: 3
         square: false
@@ -660,6 +659,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: 1 / 3;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(34,197,94,0.2);
               border-radius: 14px;
@@ -668,7 +668,6 @@ views:
 
       # ── MAINTENANCE & FEEDING ─────────────────────────────────────────────
       - type: entities
-        grid-column: 3 / 5
         title: "🍽 Maintenance Log"
         entities:
           - entity: sensor.fish_tank_days_since_water_change
@@ -716,6 +715,7 @@ views:
         card_mod:
           style: |
             ha-card {
+              grid-column: 3 / 5;
               background: linear-gradient(135deg, #0d2010, #071408);
               border: 1px solid rgba(102,187,106,0.25);
               border-radius: 14px;
