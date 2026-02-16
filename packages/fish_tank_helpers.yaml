@@ -1,0 +1,371 @@
+###############################################################################
+# 📦 PACKAGE: fish_tank_helpers.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# All input helpers for the freshwater fish tank monitor.
+# Includes thresholds, maintenance logs, feeding amounts, and notification flags.
+#
+# INSTALL:
+#   1. Enable packages in configuration.yaml:
+#        homeassistant:
+#          packages: !include_dir_named packages/
+#   2. Drop this file in:  config/packages/fish_tank_helpers.yaml
+#   3. Restart Home Assistant → Settings → System → Restart
+###############################################################################
+
+# ── MAINTENANCE LOG DATETIMES ─────────────────────────────────────────────────
+input_datetime:
+
+  fish_tank_last_water_change:
+    name: "🐟 Last Water Change"
+    has_date: true
+    has_time: true
+    icon: mdi:water-sync
+
+  fish_tank_last_feeding:
+    name: "🐟 Last Feeding"
+    has_date: true
+    has_time: true
+    icon: mdi:food
+
+  fish_tank_last_filter_clean:
+    name: "🐟 Last Filter Clean"
+    has_date: true
+    has_time: false
+    icon: mdi:air-filter
+
+  fish_tank_last_glass_clean:
+    name: "🐟 Last Glass Clean"
+    has_date: true
+    has_time: false
+    icon: mdi:spray-bottle
+
+  fish_tank_last_fert_dose:
+    name: "🐟 Last Fertiliser Dose"
+    has_date: true
+    has_time: false
+    icon: mdi:leaf
+
+  fish_tank_last_water_test:
+    name: "🐟 Last Water Test"
+    has_date: true
+    has_time: false
+    icon: mdi:test-tube
+
+  fish_tank_last_substrate_vac:
+    name: "🐟 Last Substrate Vacuum"
+    has_date: true
+    has_time: false
+    icon: mdi:vacuum
+
+  fish_tank_setup_date:
+    name: "🐟 Tank Setup Date"
+    has_date: true
+    has_time: false
+    icon: mdi:calendar-start
+
+# ── NUMERIC SETTINGS & THRESHOLDS ────────────────────────────────────────────
+input_number:
+
+  # Feeding
+  fish_tank_feeding_amount:
+    name: "🐟 Feed Amount"
+    min: 0
+    max: 10
+    step: 0.1
+    unit_of_measurement: g
+    icon: mdi:scale
+    mode: slider
+
+  fish_tank_daily_feeds:
+    name: "🐟 Feeds Per Day"
+    min: 1
+    max: 4
+    step: 1
+    initial: 2
+    icon: mdi:numeric
+    mode: slider
+
+  # ── Temperature thresholds (°F) ─────────────────────────────────────────
+  # Adjust to your species — e.g. Discus: 82–86°F, Goldfish: 65–72°F
+  fish_tank_temp_min:
+    name: "🌡 Min Safe Temp"
+    min: 60
+    max: 78
+    step: 0.5
+    initial: 72
+    unit_of_measurement: "°F"
+    icon: mdi:thermometer-low
+    mode: box
+
+  fish_tank_temp_max:
+    name: "🌡 Max Safe Temp"
+    min: 74
+    max: 90
+    step: 0.5
+    initial: 80
+    unit_of_measurement: "°F"
+    icon: mdi:thermometer-high
+    mode: box
+
+  # ── pH thresholds ────────────────────────────────────────────────────────
+  # Community tropical: 6.5–7.5 | African cichlids: 7.8–8.5 | Discus: 6.0–7.0
+  fish_tank_ph_min:
+    name: "⚗ Min Safe pH"
+    min: 5.0
+    max: 7.2
+    step: 0.1
+    initial: 6.5
+    icon: mdi:ph
+    mode: box
+
+  fish_tank_ph_max:
+    name: "⚗ Max Safe pH"
+    min: 7.0
+    max: 9.0
+    step: 0.1
+    initial: 7.5
+    icon: mdi:ph
+    mode: box
+
+  # ── Nitrogen cycle thresholds (ppm) ─────────────────────────────────────
+  fish_tank_ammonia_max:
+    name: "☣ Max Safe Ammonia"
+    min: 0
+    max: 1.0
+    step: 0.05
+    initial: 0.25
+    unit_of_measurement: ppm
+    icon: mdi:flask-remove-outline
+    mode: box
+
+  fish_tank_nitrite_max:
+    name: "🧪 Max Safe Nitrite"
+    min: 0
+    max: 1.0
+    step: 0.05
+    initial: 0.25
+    unit_of_measurement: ppm
+    icon: mdi:test-tube-off
+    mode: box
+
+  fish_tank_nitrate_warn:
+    name: "💧 Nitrate Warning Level"
+    min: 10
+    max: 40
+    step: 5
+    initial: 20
+    unit_of_measurement: ppm
+    icon: mdi:water-percent
+    mode: box
+
+  fish_tank_nitrate_max:
+    name: "💧 Nitrate Critical Level"
+    min: 20
+    max: 80
+    step: 5
+    initial: 40
+    unit_of_measurement: ppm
+    icon: mdi:water-alert
+    mode: box
+
+  # ── Dissolved oxygen threshold (mg/L) ────────────────────────────────────
+  fish_tank_o2_min:
+    name: "🫧 Min Safe Dissolved O₂"
+    min: 3
+    max: 7
+    step: 0.5
+    initial: 6
+    unit_of_measurement: mg/L
+    icon: mdi:air-filter
+    mode: box
+
+  # ── Hardness thresholds (dGH / dKH) ─────────────────────────────────────
+  fish_tank_gh_min:
+    name: "💎 Min GH"
+    min: 0
+    max: 6
+    step: 1
+    initial: 4
+    unit_of_measurement: dGH
+    icon: mdi:water-opacity
+    mode: box
+
+  fish_tank_gh_max:
+    name: "💎 Max GH"
+    min: 8
+    max: 25
+    step: 1
+    initial: 12
+    unit_of_measurement: dGH
+    icon: mdi:water-opacity
+    mode: box
+
+  fish_tank_kh_min:
+    name: "🛡 Min KH"
+    min: 0
+    max: 5
+    step: 1
+    initial: 4
+    unit_of_measurement: dKH
+    icon: mdi:shield-water
+    mode: box
+
+  fish_tank_kh_max:
+    name: "🛡 Max KH"
+    min: 5
+    max: 15
+    step: 1
+    initial: 8
+    unit_of_measurement: dKH
+    icon: mdi:shield-water
+    mode: box
+
+  # ── TDS threshold (ppm) ──────────────────────────────────────────────────
+  fish_tank_tds_max:
+    name: "💎 Max Safe TDS"
+    min: 100
+    max: 800
+    step: 50
+    initial: 300
+    unit_of_measurement: ppm
+    icon: mdi:water-check
+    mode: box
+
+  # ── CO₂ thresholds (ppm, planted tanks) ─────────────────────────────────
+  fish_tank_co2_min:
+    name: "🌿 Min CO₂ (Planted)"
+    min: 5
+    max: 20
+    step: 1
+    initial: 15
+    unit_of_measurement: ppm
+    icon: mdi:molecule-co2
+    mode: box
+
+  fish_tank_co2_max:
+    name: "🌿 Max CO₂ (Planted)"
+    min: 20
+    max: 50
+    step: 1
+    initial: 30
+    unit_of_measurement: ppm
+    icon: mdi:molecule-co2
+    mode: box
+
+  # ── Maintenance intervals (days) ─────────────────────────────────────────
+  fish_tank_water_change_interval:
+    name: "💧 Water Change Interval"
+    min: 3
+    max: 30
+    step: 1
+    initial: 7
+    unit_of_measurement: days
+    icon: mdi:calendar-sync
+    mode: box
+
+  fish_tank_filter_clean_interval:
+    name: "🔄 Filter Clean Interval"
+    min: 7
+    max: 60
+    step: 7
+    initial: 14
+    unit_of_measurement: days
+    icon: mdi:calendar-sync
+    mode: box
+
+  fish_tank_fert_dose_interval:
+    name: "🌿 Fert Dose Interval"
+    min: 1
+    max: 14
+    step: 1
+    initial: 7
+    unit_of_measurement: days
+    icon: mdi:calendar-sync
+    mode: box
+
+  # ── Light schedule ────────────────────────────────────────────────────────
+  fish_tank_light_hours:
+    name: "💡 Photoperiod (hours/day)"
+    min: 6
+    max: 16
+    step: 0.5
+    initial: 10
+    unit_of_measurement: h
+    icon: mdi:weather-sunny
+    mode: slider
+
+# ── FLAGS & TOGGLES ───────────────────────────────────────────────────────────
+input_boolean:
+
+  fish_tank_alerts_enabled:
+    name: "🐟 Alerts Enabled"
+    initial: true
+    icon: mdi:bell
+
+  fish_tank_notify_phone:
+    name: "🐟 Phone Notifications"
+    initial: true
+    icon: mdi:cellphone
+
+  fish_tank_notify_email:
+    name: "🐟 Email Notifications"
+    initial: false
+    icon: mdi:email
+
+  fish_tank_planted_tank:
+    name: "🌿 Planted Tank Mode"
+    initial: true
+    icon: mdi:leaf
+    # When ON: CO₂ automation and fertiliser reminders are active
+
+  fish_tank_vacation_mode:
+    name: "🏖 Vacation Mode"
+    initial: false
+    icon: mdi:beach
+    # When ON: reduced feeding frequency, extra monitoring
+
+  fish_tank_cycling:
+    name: "🔄 Tank Cycling Mode"
+    initial: false
+    icon: mdi:autorenew
+    # When ON: suppresses ammonia/nitrite alerts (expected during cycle)
+
+# ── DROPDOWN SELECTORS ────────────────────────────────────────────────────────
+input_select:
+
+  fish_tank_water_source:
+    name: "🐟 Water Source"
+    options:
+      - Tap (dechlorinated)
+      - RO/DI Water
+      - RO/DI + Remineralised
+      - Well Water
+      - Rainwater
+    initial: Tap (dechlorinated)
+    icon: mdi:water-pump
+
+  fish_tank_filter_type:
+    name: "🐟 Filter Type"
+    options:
+      - Canister Filter
+      - Hang-on-Back (HOB)
+      - Sponge Filter
+      - Undergravel Filter
+      - Internal Filter
+      - Sump
+    initial: Canister Filter
+    icon: mdi:air-filter
+
+  fish_tank_tank_type:
+    name: "🐟 Tank Type"
+    options:
+      - Community Tropical
+      - Planted (Low Tech)
+      - Planted (High Tech)
+      - Cichlid
+      - Biotope
+      - Coldwater
+      - Breeding Tank
+      - Quarantine Tank
+    initial: Community Tropical
+    icon: mdi:fishbowl
