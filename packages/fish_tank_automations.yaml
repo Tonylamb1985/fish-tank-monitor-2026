@@ -1,0 +1,569 @@
+###############################################################################
+# 📦 PACKAGE: fish_tank_automations.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# All automations for the freshwater fish tank monitor.
+# Each automation is independently togglable from the dashboard.
+#
+# INSTALL:
+#   Drop in:  config/packages/fish_tank_automations.yaml
+#   Restart Home Assistant after adding.
+#
+# REQUIRES:
+#   fish_tank_helpers.yaml  (thresholds + boolean flags)
+#   fish_tank_sensors.yaml  (derived status sensors)
+#
+# NOTIFY TARGET:
+#   Replace "notify.mobile_app_your_phone" with your actual notifier.
+#   Find yours at: Developer Tools → Services → search "notify"
+###############################################################################
+
+automation:
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🚨 WATER QUALITY ALERTS
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: fish_tank_high_ammonia_alert
+    alias: "🐟 Fish Tank: High Ammonia Alert"
+    description: >
+      Fires when ammonia exceeds the threshold for 2 minutes.
+      Suppressed during tank cycling mode.
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_ammonia
+        above: input_number.fish_tank_ammonia_max
+        for: "00:02:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.fish_tank_cycling
+        state: "off"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🚨 CRITICAL: Fish Tank Ammonia"
+          message: >
+            Ammonia at {{ states('sensor.fish_tank_ammonia') }} ppm!
+            (Threshold: {{ states('input_number.fish_tank_ammonia_max') }} ppm)
+            Perform an immediate 25–30% water change.
+          data:
+            tag: fish_tank_ammonia
+            priority: high
+      - service: persistent_notification.create
+        data:
+          title: "🚨 Fish Tank: High Ammonia"
+          message: >
+            Ammonia: {{ states('sensor.fish_tank_ammonia') }} ppm at
+            {{ now().strftime('%H:%M on %d %b %Y') }}.
+            Immediate water change required.
+          notification_id: fish_tank_ammonia_alert
+
+  - id: fish_tank_ammonia_resolved
+    alias: "🐟 Fish Tank: Ammonia Resolved"
+    description: "Clears ammonia alert when levels return to safe."
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_ammonia
+        below: input_number.fish_tank_ammonia_max
+        for: "00:10:00"
+    action:
+      - service: persistent_notification.dismiss
+        data:
+          notification_id: fish_tank_ammonia_alert
+
+  - id: fish_tank_nitrite_alert
+    alias: "🐟 Fish Tank: Nitrite Alert"
+    description: >
+      Fires when nitrite exceeds the threshold for 2 minutes.
+      Suppressed during tank cycling mode.
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_nitrite
+        above: input_number.fish_tank_nitrite_max
+        for: "00:02:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.fish_tank_cycling
+        state: "off"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🚨 CRITICAL: Fish Tank Nitrite"
+          message: >
+            Nitrite at {{ states('sensor.fish_tank_nitrite') }} ppm!
+            Tank may be mid-cycle or filter disturbed.
+            Perform immediate water change.
+          data:
+            tag: fish_tank_nitrite
+            priority: high
+      - service: persistent_notification.create
+        data:
+          title: "🚨 Fish Tank: Nitrite Spike"
+          message: >
+            Nitrite: {{ states('sensor.fish_tank_nitrite') }} ppm at
+            {{ now().strftime('%H:%M on %d %b %Y') }}.
+          notification_id: fish_tank_nitrite_alert
+
+  - id: fish_tank_high_nitrate_alert
+    alias: "🐟 Fish Tank: High Nitrate Warning"
+    description: "Fires when nitrate exceeds critical level for 30 minutes."
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_nitrate
+        above: input_number.fish_tank_nitrate_max
+        for: "00:30:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Fish Tank: High Nitrate"
+          message: >
+            Nitrate at {{ states('sensor.fish_tank_nitrate') }} ppm
+            (safe max: {{ states('input_number.fish_tank_nitrate_max') }} ppm).
+            Schedule a 25% water change soon.
+          data:
+            tag: fish_tank_nitrate
+
+  - id: fish_tank_high_temperature_alert
+    alias: "🐟 Fish Tank: High Temperature Alert"
+    description: "Fires when temperature exceeds the max threshold for 5 minutes."
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_temperature
+        above: input_number.fish_tank_temp_max
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Fish Tank: High Temperature"
+          message: >
+            Temperature at {{ states('sensor.fish_tank_temperature') }}°F
+            (max safe: {{ states('input_number.fish_tank_temp_max') }}°F).
+            Check heater thermostat. If critical, float sealed ice in tank.
+          data:
+            tag: fish_tank_temp_high
+
+  - id: fish_tank_low_temperature_alert
+    alias: "🐟 Fish Tank: Low Temperature Alert"
+    description: "Fires when temperature drops below the min threshold for 5 minutes."
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_temperature
+        below: input_number.fish_tank_temp_min
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Fish Tank: Low Temperature"
+          message: >
+            Temperature dropped to {{ states('sensor.fish_tank_temperature') }}°F
+            (min safe: {{ states('input_number.fish_tank_temp_min') }}°F).
+            Check heater is powered and functioning.
+          data:
+            tag: fish_tank_temp_low
+
+  - id: fish_tank_ph_low_alert
+    alias: "🐟 Fish Tank: pH Too Low"
+    description: "Fires when pH drops below minimum for 10 minutes."
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_ph
+        below: input_number.fish_tank_ph_min
+        for: "00:10:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Fish Tank: pH Too Low"
+          message: >
+            pH at {{ states('sensor.fish_tank_ph') }}
+            (safe min: {{ states('input_number.fish_tank_ph_min') }}).
+            Check KH buffering — low KH causes pH crashes.
+            Consider adding baking soda (NaHCO₃) or crushed coral.
+          data:
+            tag: fish_tank_ph
+
+  - id: fish_tank_ph_high_alert
+    alias: "🐟 Fish Tank: pH Too High"
+    description: "Fires when pH exceeds maximum for 10 minutes."
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_ph
+        above: input_number.fish_tank_ph_max
+        for: "00:10:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Fish Tank: pH Too High"
+          message: >
+            pH at {{ states('sensor.fish_tank_ph') }}
+            (safe max: {{ states('input_number.fish_tank_ph_max') }}).
+            Check CO₂ levels and consider RO water top-up.
+          data:
+            tag: fish_tank_ph
+
+  - id: fish_tank_low_oxygen_alert
+    alias: "🐟 Fish Tank: Low Dissolved Oxygen"
+    description: "Fires when dissolved oxygen drops below minimum for 5 minutes."
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_dissolved_o2
+        below: input_number.fish_tank_o2_min
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Fish Tank: Low Oxygen"
+          message: >
+            Dissolved O₂ at {{ states('sensor.fish_tank_dissolved_o2') }} mg/L
+            (min safe: {{ states('input_number.fish_tank_o2_min') }} mg/L).
+            Check air pump and increase surface agitation.
+          data:
+            tag: fish_tank_oxygen
+
+  - id: fish_tank_high_co2_alert
+    alias: "🐟 Fish Tank: High CO₂ Alert"
+    description: >
+      Only active in planted tank mode.
+      High CO₂ can cause fish to gasp at surface.
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_co2
+        above: input_number.fish_tank_co2_max
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_planted_tank
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Fish Tank: High CO₂"
+          message: >
+            CO₂ at {{ states('sensor.fish_tank_co2') }} ppm
+            (safe max: {{ states('input_number.fish_tank_co2_max') }} ppm).
+            Reduce CO₂ flow rate. Check fish for surface gasping.
+          data:
+            tag: fish_tank_co2
+      # Automatically cut CO₂ regulator if dangerously high
+      - condition: numeric_state
+        entity_id: sensor.fish_tank_co2
+        above: 40
+      - service: switch.turn_off
+        entity_id: switch.fish_tank_co2_regulator
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 💡 LIGHTING SCHEDULE
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: fish_tank_lights_on
+    alias: "🐟 Fish Tank: Lights On"
+    description: "Turns lights on at 7:00 AM daily."
+    mode: single
+    trigger:
+      - platform: time
+        at: "07:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_vacation_mode
+        state: "off"
+    action:
+      - service: switch.turn_on
+        entity_id: switch.fish_tank_led_lights
+
+  - id: fish_tank_lights_off
+    alias: "🐟 Fish Tank: Lights Off"
+    description: "Turns lights off at 10:00 PM daily."
+    mode: single
+    trigger:
+      - platform: time
+        at: "22:00:00"
+    action:
+      - service: switch.turn_off
+        entity_id: switch.fish_tank_led_lights
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🌿 CO₂ SCHEDULE (Planted Tank)
+  # CO₂ on 1h after lights to avoid morning pH dip
+  # CO₂ off 1h before lights off to prevent overnight buildup
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: fish_tank_co2_on
+    alias: "🐟 Fish Tank: CO₂ On"
+    description: >
+      Turns CO₂ regulator on at 8:00 AM (1h after lights).
+      Only runs in planted tank mode.
+    mode: single
+    trigger:
+      - platform: time
+        at: "08:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_planted_tank
+        state: "on"
+    action:
+      - service: switch.turn_on
+        entity_id: switch.fish_tank_co2_regulator
+
+  - id: fish_tank_co2_off
+    alias: "🐟 Fish Tank: CO₂ Off"
+    description: >
+      Turns CO₂ regulator off at 9:00 PM (1h before lights off).
+      Only runs in planted tank mode.
+    mode: single
+    trigger:
+      - platform: time
+        at: "21:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_planted_tank
+        state: "on"
+    action:
+      - service: switch.turn_off
+        entity_id: switch.fish_tank_co2_regulator
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🍽 FEEDING SCHEDULE
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: fish_tank_auto_feeding_morning
+    alias: "🐟 Fish Tank: Morning Auto-Feed"
+    description: "Triggers auto feeder at 8:00 AM and logs the event."
+    mode: single
+    trigger:
+      - platform: time
+        at: "08:00:00"
+    condition:
+      # Skip feeding in vacation mode (feeder handles reduced frequency separately)
+      - condition: state
+        entity_id: input_boolean.fish_tank_vacation_mode
+        state: "off"
+    action:
+      - service: switch.turn_on
+        entity_id: switch.fish_tank_auto_feeder
+      - delay: "00:00:10"
+      - service: switch.turn_off
+        entity_id: switch.fish_tank_auto_feeder
+      - service: input_datetime.set_datetime
+        entity_id: input_datetime.fish_tank_last_feeding
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  - id: fish_tank_auto_feeding_evening
+    alias: "🐟 Fish Tank: Evening Auto-Feed"
+    description: "Triggers auto feeder at 6:00 PM and logs the event."
+    mode: single
+    trigger:
+      - platform: time
+        at: "18:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_vacation_mode
+        state: "off"
+    action:
+      - service: switch.turn_on
+        entity_id: switch.fish_tank_auto_feeder
+      - delay: "00:00:10"
+      - service: switch.turn_off
+        entity_id: switch.fish_tank_auto_feeder
+      - service: input_datetime.set_datetime
+        entity_id: input_datetime.fish_tank_last_feeding
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  # Vacation mode: feed once per day only
+  - id: fish_tank_vacation_feeding
+    alias: "🐟 Fish Tank: Vacation Mode Feed"
+    description: "Single daily feed when vacation mode is active."
+    mode: single
+    trigger:
+      - platform: time
+        at: "12:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_vacation_mode
+        state: "on"
+    action:
+      - service: switch.turn_on
+        entity_id: switch.fish_tank_auto_feeder
+      - delay: "00:00:08"
+      - service: switch.turn_off
+        entity_id: switch.fish_tank_auto_feeder
+      - service: input_datetime.set_datetime
+        entity_id: input_datetime.fish_tank_last_feeding
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🔔 MAINTENANCE REMINDERS
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: fish_tank_water_change_reminder
+    alias: "🐟 Fish Tank: Water Change Reminder"
+    description: >
+      Reminds you when a water change is overdue based on
+      the configured interval (default: every 7 days).
+    mode: single
+    trigger:
+      # Check once daily at 9:00 AM
+      - platform: time
+        at: "09:00:00"
+    condition:
+      - condition: template
+        value_template: >
+          {% set days = states('sensor.fish_tank_days_since_water_change') | float(-1) %}
+          {% set interval = states('input_number.fish_tank_water_change_interval') | float(7) %}
+          {{ days >= interval }}
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "💧 Water Change Due"
+          message: >
+            {{ states('sensor.fish_tank_days_since_water_change') | round(0) }} days since
+            last water change (due every
+            {{ states('input_number.fish_tank_water_change_interval') | int }} days).
+            Aim for 25–30% replacement with dechlorinated water.
+          data:
+            tag: fish_tank_water_change
+      - service: persistent_notification.create
+        data:
+          title: "💧 Water Change Due"
+          message: >
+            Last change: {{ states('input_datetime.fish_tank_last_water_change') }}.
+            {{ states('sensor.fish_tank_days_since_water_change') | round(0) }} days ago.
+          notification_id: fish_tank_water_change_due
+
+  - id: fish_tank_filter_clean_reminder
+    alias: "🐟 Fish Tank: Filter Clean Reminder"
+    description: "Reminds you when the filter is due for cleaning."
+    mode: single
+    trigger:
+      - platform: time
+        at: "09:00:00"
+    condition:
+      - condition: template
+        value_template: >
+          {% set days = states('sensor.fish_tank_days_since_filter_clean') | float(-1) %}
+          {% set interval = states('input_number.fish_tank_filter_clean_interval') | float(14) %}
+          {{ days >= interval }}
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🔄 Filter Clean Due"
+          message: >
+            {{ states('sensor.fish_tank_days_since_filter_clean') | round(0) }} days since
+            last filter clean. Rinse media in old tank water (not tap — kills beneficial bacteria!).
+          data:
+            tag: fish_tank_filter
+
+  - id: fish_tank_fert_dose_reminder
+    alias: "🐟 Fish Tank: Fertiliser Dose Reminder"
+    description: "Reminds you to dose fertiliser (planted tanks only)."
+    mode: single
+    trigger:
+      - platform: time
+        at: "09:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_planted_tank
+        state: "on"
+      - condition: template
+        value_template: >
+          {% set days = states('sensor.fish_tank_days_since_fert_dose') | float(-1) %}
+          {% set interval = states('input_number.fish_tank_fert_dose_interval') | float(7) %}
+          {{ days >= interval }}
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🌿 Fertiliser Dose Due"
+          message: >
+            {{ states('sensor.fish_tank_days_since_fert_dose') | round(0) }} days since
+            last fertiliser dose. Dose after your water change for best absorption.
+          data:
+            tag: fish_tank_fert
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🏖 VACATION MODE
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: fish_tank_vacation_mode_activated
+    alias: "🐟 Fish Tank: Vacation Mode On"
+    description: "Adjusts tank routine when vacation mode is enabled."
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: input_boolean.fish_tank_vacation_mode
+        to: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🏖 Fish Tank: Vacation Mode Active"
+          message: >
+            Tank is now in vacation mode.
+            Feeding reduced to once daily at 12:00 PM.
+            Monitoring continues at full sensitivity.
+
+  - id: fish_tank_vacation_mode_deactivated
+    alias: "🐟 Fish Tank: Vacation Mode Off"
+    description: "Restores normal feeding schedule when vacation mode is disabled."
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: input_boolean.fish_tank_vacation_mode
+        to: "off"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🐟 Fish Tank: Normal Mode Restored"
+          message: >
+            Vacation mode disabled. Feeding schedule restored
+            to morning (08:00) and evening (18:00).
