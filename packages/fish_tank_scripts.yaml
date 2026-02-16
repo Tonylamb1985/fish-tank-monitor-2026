@@ -1,0 +1,192 @@
+###############################################################################
+# 📦 PACKAGE: fish_tank_scripts.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Callable scripts for the freshwater fish tank monitor.
+# Called by dashboard buttons and automations.
+#
+# INSTALL:
+#   Drop in:  config/packages/fish_tank_scripts.yaml
+#   Restart Home Assistant after adding.
+#
+# REQUIRES:  fish_tank_helpers.yaml
+###############################################################################
+
+script:
+
+  # ── FEEDING ───────────────────────────────────────────────────────────────
+
+  fish_tank_feed_now:
+    alias: "🐟 Fish Tank: Feed Now"
+    description: >
+      Triggers the auto feeder for 10 seconds and logs the feeding time.
+      Call from a dashboard button or voice assistant.
+    icon: mdi:food
+    sequence:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.fish_tank_auto_feeder
+      - delay: "00:00:10"
+      - service: switch.turn_off
+        target:
+          entity_id: switch.fish_tank_auto_feeder
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.fish_tank_last_feeding
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🍽 Fish Tank Fed"
+          message: >
+            Tank fed manually at {{ now().strftime('%H:%M on %d %b') }}.
+
+  # ── MAINTENANCE LOGGING ───────────────────────────────────────────────────
+
+  fish_tank_log_water_change:
+    alias: "🐟 Fish Tank: Log Water Change"
+    description: "Stamps the current datetime as the last water change."
+    icon: mdi:water-sync
+    sequence:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.fish_tank_last_water_change
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: persistent_notification.dismiss
+        data:
+          notification_id: fish_tank_water_change_due
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "💧 Water Change Logged"
+          message: >
+            Water change recorded at {{ now().strftime('%H:%M on %d %b %Y') }}.
+            Next due in {{ states('input_number.fish_tank_water_change_interval') | int }} days.
+
+  fish_tank_log_filter_clean:
+    alias: "🐟 Fish Tank: Log Filter Clean"
+    description: "Stamps the current date as the last filter clean."
+    icon: mdi:air-filter
+    sequence:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.fish_tank_last_filter_clean
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🔄 Filter Clean Logged"
+          message: >
+            Filter clean recorded at {{ now().strftime('%H:%M on %d %b %Y') }}.
+            Next due in {{ states('input_number.fish_tank_filter_clean_interval') | int }} days.
+
+  fish_tank_log_glass_clean:
+    alias: "🐟 Fish Tank: Log Glass Clean"
+    description: "Stamps the current date as the last glass clean."
+    icon: mdi:spray-bottle
+    sequence:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.fish_tank_last_glass_clean
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  fish_tank_log_fert_dose:
+    alias: "🐟 Fish Tank: Log Fertiliser Dose"
+    description: "Stamps the current date as the last fertiliser dose."
+    icon: mdi:leaf
+    sequence:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.fish_tank_last_fert_dose
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🌿 Fertiliser Dosed"
+          message: >
+            Fertiliser dose recorded at {{ now().strftime('%H:%M on %d %b %Y') }}.
+
+  fish_tank_log_water_test:
+    alias: "🐟 Fish Tank: Log Water Test"
+    description: "Stamps the current date as the last manual water test."
+    icon: mdi:test-tube
+    sequence:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.fish_tank_last_water_test
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🧪 Water Test Logged"
+          message: >
+            Manual water test recorded at {{ now().strftime('%H:%M on %d %b %Y') }}.
+
+  fish_tank_log_substrate_vac:
+    alias: "🐟 Fish Tank: Log Substrate Vacuum"
+    description: "Stamps the current date as the last substrate vacuum."
+    icon: mdi:vacuum
+    sequence:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.fish_tank_last_substrate_vac
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+  # ── EMERGENCY ACTIONS ─────────────────────────────────────────────────────
+
+  fish_tank_emergency_aeration:
+    alias: "🐟 Fish Tank: Emergency Aeration"
+    description: >
+      Turns off CO₂ and turns on the air pump at maximum to rapidly
+      boost dissolved oxygen. Use if fish are gasping.
+    icon: mdi:air-purifier
+    sequence:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.fish_tank_co2_regulator
+      - service: switch.turn_on
+        target:
+          entity_id: switch.fish_tank_air_pump
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🆘 Emergency Aeration Active"
+          message: >
+            CO₂ off. Air pump on. Check fish immediately.
+            If still gasping, perform a 30% water change with aerated water.
+
+  fish_tank_all_equipment_on:
+    alias: "🐟 Fish Tank: All Equipment On"
+    description: "Turns on all tank equipment (e.g. after a power cut)."
+    icon: mdi:power-on
+    sequence:
+      - service: switch.turn_on
+        target:
+          entity_id:
+            - switch.fish_tank_filter
+            - switch.fish_tank_heater
+            - switch.fish_tank_air_pump
+            - switch.fish_tank_uv_sterilizer
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "✅ Fish Tank Equipment On"
+          message: "Filter, heater, air pump and UV sterilizer turned on."
+
+  fish_tank_all_equipment_off:
+    alias: "🐟 Fish Tank: All Equipment Off"
+    description: "Turns off all equipment (e.g. for maintenance)."
+    icon: mdi:power-off
+    sequence:
+      - service: switch.turn_off
+        target:
+          entity_id:
+            - switch.fish_tank_filter
+            - switch.fish_tank_heater
+            - switch.fish_tank_air_pump
+            - switch.fish_tank_co2_regulator
+            - switch.fish_tank_uv_sterilizer
+            - switch.fish_tank_led_lights
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⛔ Fish Tank Equipment Off"
+          message: "All equipment turned off. Remember to restore after maintenance!"
