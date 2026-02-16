@@ -64,7 +64,7 @@ views:
         grid-column: span 1
         header:
           show: true
-          title: 💚 Tank Health Score
+          title: "💚 Tank Health Score"
           show_states: true
           colorize_states: true
         apex_config:
@@ -112,7 +112,7 @@ views:
         grid-column: span 1
         header:
           show: true
-          title: 🌡 Temperature
+          title: "🌡 Temperature"
           show_states: true
           colorize_states: true
         apex_config:
@@ -160,7 +160,7 @@ views:
         grid-column: span 1
         header:
           show: true
-          title: ⚗ pH Level
+          title: "⚗ pH Level"
           show_states: true
           colorize_states: true
         apex_config:
@@ -208,7 +208,7 @@ views:
         grid-column: span 1
         header:
           show: true
-          title: 🫧 Dissolved O₂
+          title: "🫧 Dissolved O2"
           show_states: true
           colorize_states: true
         apex_config:
@@ -382,7 +382,7 @@ views:
         grid-column: span 2
         header:
           show: true
-          title: 🌿 CO₂ Level  (Planted Tank — ideal: 15–30 ppm)
+          title: "🌿 CO₂ Level (Planted Tank - ideal: 15-30 ppm)"
           show_states: true
           colorize_states: true
         apex_config:
@@ -428,7 +428,7 @@ views:
       # ── TEMPERATURE HISTORY ───────────────────────────────────────────────
       - type: custom:mini-graph-card
         grid-column: 1 / 3
-        name: Temperature — Last 24h
+        name: "Temperature - Last 24h"
         icon: mdi:thermometer-water
         entities:
           - entity: sensor.fish_tank_temperature
@@ -463,7 +463,7 @@ views:
       # ── pH HISTORY ────────────────────────────────────────────────────────
       - type: custom:mini-graph-card
         grid-column: 3 / 5
-        name: pH — Last 24h
+        name: "pH - Last 24h"
         icon: mdi:ph
         entities:
           - entity: sensor.fish_tank_ph
@@ -498,7 +498,7 @@ views:
       # ── EQUIPMENT CONTROL ─────────────────────────────────────────────────
       - type: grid
         grid-column: 1 / 3
-        title: ⚙️ Equipment Control
+        title: "⚙️ Equipment Control"
         columns: 3
         square: false
         cards:
@@ -868,11 +868,11 @@ views:
         title: "🐟 Tank Mode"
         entities:
           - entity: input_boolean.fish_tank_planted_tank
-            name: Planted Tank Mode (enables CO₂ & fert)
+            name: "Planted Tank Mode (enables CO2 and fert)"
           - entity: input_boolean.fish_tank_vacation_mode
             name: Vacation Mode (1x feed/day)
           - entity: input_boolean.fish_tank_cycling
-            name: Cycling Mode (suppresses NH₃/NO₂ alerts)
+            name: "Cycling Mode (suppresses NH3/NO2 alerts)"
           - entity: input_select.fish_tank_tank_type
             name: Tank Type
           - entity: input_select.fish_tank_water_source
@@ -906,17 +906,17 @@ views:
           - entity: automation.fish_tank_ph_high_alert
             name: pH High Alert
           - entity: automation.fish_tank_low_oxygen_alert
-            name: Low O₂ Alert
+            name: "Low O2 Alert"
           - entity: automation.fish_tank_high_co2_alert
-            name: High CO₂ Alert
+            name: "High CO2 Alert"
           - entity: automation.fish_tank_lights_on
             name: Lights On (07:00)
           - entity: automation.fish_tank_lights_off
             name: Lights Off (22:00)
           - entity: automation.fish_tank_co2_on
-            name: CO₂ On (08:00)
+            name: "CO2 On (08:00)"
           - entity: automation.fish_tank_co2_off
-            name: CO₂ Off (21:00)
+            name: "CO2 Off (21:00)"
           - entity: automation.fish_tank_auto_feeding_morning
             name: Morning Feed (08:00)
           - entity: automation.fish_tank_auto_feeding_evening
@@ -952,7 +952,7 @@ views:
           - entity: input_number.fish_tank_nitrate_max
             name: Nitrate Critical (ppm)
           - entity: input_number.fish_tank_o2_min
-            name: Min Dissolved O₂ (mg/L)
+            name: "Min Dissolved O2 (mg/L)"
           - entity: input_number.fish_tank_gh_min
             name: Min GH (dGH)
           - entity: input_number.fish_tank_gh_max
@@ -962,9 +962,9 @@ views:
           - entity: input_number.fish_tank_kh_max
             name: Max KH (dKH)
           - entity: input_number.fish_tank_co2_min
-            name: Min CO₂ — Planted (ppm)
+            name: "Min CO2 - Planted (ppm)"
           - entity: input_number.fish_tank_co2_max
-            name: Max CO₂ — Planted (ppm)
+            name: "Max CO2 - Planted (ppm)"
         card_mod:
           style: |
             ha-card { background: linear-gradient(135deg,#0d2010,#071408);
