@@ -1,0 +1,179 @@
+###############################################################################
+# 📦 PACKAGE: fish_tank_placeholder_sensors.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Manual input helpers for sensors you don't have hardware for yet.
+# These let the dashboard work immediately while you're still building
+# your physical sensor setup.
+#
+# INSTALL:
+#   Drop in:  config/packages/fish_tank_placeholder_sensors.yaml
+#   Restart Home Assistant.
+#
+# USAGE:
+#   After restart, go to Developer Tools → States → search "fish_tank"
+#   You'll see new input_number entities you can manually update with test kit results.
+#
+# When you get real hardware sensors:
+#   1. Delete this file (or comment out the sensors you've replaced)
+#   2. Create your real sensors (ESPHome, Zigbee, etc.)
+#   3. Restart HA
+###############################################################################
+
+# For sensors you test manually with API Master Test Kit or similar
+input_number:
+
+  fish_tank_ammonia_manual:
+    name: "🐟 Ammonia (Manual)"
+    min: 0
+    max: 4
+    step: 0.01
+    unit_of_measurement: ppm
+    icon: mdi:flask-remove-outline
+    mode: box
+
+  fish_tank_nitrite_manual:
+    name: "🐟 Nitrite (Manual)"
+    min: 0
+    max: 5
+    step: 0.01
+    unit_of_measurement: ppm
+    icon: mdi:test-tube-off
+    mode: box
+
+  fish_tank_nitrate_manual:
+    name: "🐟 Nitrate (Manual)"
+    min: 0
+    max: 80
+    step: 1
+    unit_of_measurement: ppm
+    icon: mdi:water-percent
+    mode: box
+
+  fish_tank_gh_manual:
+    name: "🐟 GH (Manual Drop Test)"
+    min: 0
+    max: 30
+    step: 1
+    unit_of_measurement: dGH
+    icon: mdi:water-opacity
+    mode: box
+
+  fish_tank_kh_manual:
+    name: "🐟 KH (Manual Drop Test)"
+    min: 0
+    max: 20
+    step: 1
+    unit_of_measurement: dKH
+    icon: mdi:shield-water
+    mode: box
+
+  fish_tank_tds_manual:
+    name: "🐟 TDS (Manual Meter)"
+    min: 0
+    max: 1000
+    step: 10
+    unit_of_measurement: ppm
+    icon: mdi:water-check
+    mode: box
+
+  fish_tank_co2_manual:
+    name: "🐟 CO₂ (Estimated)"
+    min: 0
+    max: 60
+    step: 1
+    unit_of_measurement: ppm
+    icon: mdi:molecule-co2
+    mode: box
+
+  fish_tank_turbidity_manual:
+    name: "🐟 Turbidity (Visual Estimate)"
+    min: 0
+    max: 50
+    step: 1
+    unit_of_measurement: NTU
+    icon: mdi:eye-outline
+    mode: box
+
+  fish_tank_water_level_manual:
+    name: "🐟 Water Level (cm from top)"
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: cm
+    icon: mdi:waves
+    mode: slider
+
+# Create template sensors that alias these manual inputs to the expected entity IDs
+# This way the dashboard still works while you build your real sensor setup
+template:
+  - sensor:
+
+      - name: fish_tank_ammonia
+        unique_id: fish_tank_ammonia_placeholder
+        state: "{{ states('input_number.fish_tank_ammonia_manual') }}"
+        unit_of_measurement: ppm
+        icon: mdi:flask-remove-outline
+
+      - name: fish_tank_nitrite
+        unique_id: fish_tank_nitrite_placeholder
+        state: "{{ states('input_number.fish_tank_nitrite_manual') }}"
+        unit_of_measurement: ppm
+        icon: mdi:test-tube-off
+
+      - name: fish_tank_nitrate
+        unique_id: fish_tank_nitrate_placeholder
+        state: "{{ states('input_number.fish_tank_nitrate_manual') }}"
+        unit_of_measurement: ppm
+        icon: mdi:water-percent
+
+      - name: fish_tank_gh
+        unique_id: fish_tank_gh_placeholder
+        state: "{{ states('input_number.fish_tank_gh_manual') }}"
+        unit_of_measurement: dGH
+        icon: mdi:water-opacity
+
+      - name: fish_tank_kh
+        unique_id: fish_tank_kh_placeholder
+        state: "{{ states('input_number.fish_tank_kh_manual') }}"
+        unit_of_measurement: dKH
+        icon: mdi:shield-water
+
+      - name: fish_tank_tds
+        unique_id: fish_tank_tds_placeholder
+        state: "{{ states('input_number.fish_tank_tds_manual') }}"
+        unit_of_measurement: ppm
+        icon: mdi:water-check
+
+      - name: fish_tank_co2
+        unique_id: fish_tank_co2_placeholder
+        state: "{{ states('input_number.fish_tank_co2_manual') }}"
+        unit_of_measurement: ppm
+        icon: mdi:molecule-co2
+
+      - name: fish_tank_turbidity
+        unique_id: fish_tank_turbidity_placeholder
+        state: "{{ states('input_number.fish_tank_turbidity_manual') }}"
+        unit_of_measurement: NTU
+        icon: mdi:eye-outline
+
+      - name: fish_tank_water_level
+        unique_id: fish_tank_water_level_placeholder
+        state: "{{ states('input_number.fish_tank_water_level_manual') }}"
+        unit_of_measurement: cm
+        icon: mdi:waves
+
+###############################################################################
+# REMOVING THIS FILE LATER
+# ─────────────────────────────────────────────────────────────────────────────
+# When you install real sensors (e.g. via ESPHome), you'll create entities like:
+#   sensor.fish_tank_ammonia (from your Atlas EZO-NH3)
+#   sensor.fish_tank_ph (from your Atlas EZO-pH)
+#
+# At that point:
+#   1. Delete this fish_tank_placeholder_sensors.yaml file
+#   2. Restart HA
+#   3. Your real sensors will take over with the same entity IDs
+#
+# The template sensors in this file will disappear, and the dashboard will
+# seamlessly start reading from your real hardware instead.
+###############################################################################
