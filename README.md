@@ -7,24 +7,29 @@
 
 ```
 config/
-├── configuration.yaml          ← add packages line here
-└── packages/
-    ├── fish_tank_helpers.yaml      📦 All input helpers (thresholds, logs, flags)
-    ├── fish_tank_sensors.yaml      📦 Template sensors (status, health, countdowns)
-    ├── fish_tank_automations.yaml  📦 All automations (alerts, schedules, reminders)
-    ├── fish_tank_scripts.yaml      📦 All scripts (feed, log, emergency actions)
-    └── fish_tank_dashboard.yaml    📊 Lovelace dashboard (paste into UI separately)
+├── configuration.yaml          ← add packages + themes lines here
+├── packages/
+│   ├── fish_tank_helpers.yaml      📦 All input helpers (thresholds, logs, flags)
+│   ├── fish_tank_sensors.yaml      📦 Template sensors (status, health, countdowns)
+│   ├── fish_tank_automations.yaml  📦 All automations (alerts, schedules, reminders)
+│   ├── fish_tank_scripts.yaml      📦 All scripts (feed, log, emergency actions)
+│   └── fish_tank_dashboard.yaml    📊 Lovelace dashboard (paste into UI separately)
+└── themes/
+    └── aquarium.yaml               🎨 Aquarium theme (optional - applies globally)
 ```
 
 ---
 
-## ⚡ Step 1 — Enable Packages in configuration.yaml
+## ⚡ Step 1 — Enable Packages and Themes in configuration.yaml
 
 Add this to your `configuration.yaml` (skip if already present):
 
 ```yaml
 homeassistant:
   packages: !include_dir_named packages
+
+frontend:
+  themes: !include_dir_merge_named themes
 ```
 
 ---
@@ -73,7 +78,29 @@ Go to HACS → Frontend → search and install:
 
 ---
 
-## ⚡ Step 6 — Connect Your Hardware Sensors
+## ⚡ Step 6 — (Optional) Apply the Aquarium Theme Globally
+
+To give **all your dashboards** the underwater aquarium aesthetic:
+
+1. **Copy** `themes/aquarium.yaml` into `config/themes/`
+2. **Restart** Home Assistant
+3. **Click your profile icon** (bottom left)
+4. **Theme** → Select **Aquarium** from dropdown
+5. **Refresh** the page
+
+✨ The theme applies globally:
+- Deep ocean gradient backgrounds on all views
+- Frosted glass panels on all cards
+- Cyan/aqua accents everywhere
+- Soft aquarium glow effects
+
+📖 See `themes/THEME_INSTALL.md` for customization options.
+
+**Note:** The fish tank dashboard already has aquarium styling built-in, so it looks great with or without the global theme. The theme just extends that look to all your other dashboards too.
+
+---
+
+## ⚡ Step 7 — Connect Your Hardware Sensors
 
 Replace entity IDs in the dashboard with your actual hardware sensors.
 Expected entity names (rename yours to match, or find/replace in the YAML):
@@ -102,7 +129,7 @@ Expected entity names (rename yours to match, or find/replace in the YAML):
 
 ---
 
-## ⚡ Step 7 — Set Your Notify Target
+## ⚡ Step 8 — Set Your Notify Target
 
 In `fish_tank_automations.yaml` and `fish_tank_scripts.yaml`, replace:
 ```yaml
