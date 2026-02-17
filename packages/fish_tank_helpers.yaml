@@ -30,31 +30,31 @@ input_datetime:
   fish_tank_last_filter_clean:
     name: "🐟 Last Filter Clean"
     has_date: true
-    has_time: false
+    has_time: true
     icon: mdi:air-filter
 
   fish_tank_last_glass_clean:
     name: "🐟 Last Glass Clean"
     has_date: true
-    has_time: false
+    has_time: true
     icon: mdi:spray-bottle
 
   fish_tank_last_fert_dose:
     name: "🐟 Last Fertiliser Dose"
     has_date: true
-    has_time: false
+    has_time: true
     icon: mdi:leaf
 
   fish_tank_last_water_test:
     name: "🐟 Last Water Test"
     has_date: true
-    has_time: false
+    has_time: true
     icon: mdi:test-tube
 
   fish_tank_last_substrate_vac:
     name: "🐟 Last Substrate Vacuum"
     has_date: true
-    has_time: false
+    has_time: true
     icon: mdi:vacuum
 
   fish_tank_setup_date:
