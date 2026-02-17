@@ -85,25 +85,25 @@ input_number:
     icon: mdi:numeric
     mode: slider
 
-  # ── Temperature thresholds (°F) ─────────────────────────────────────────
-  # Adjust to your species — e.g. Discus: 82–86°F, Goldfish: 65–72°F
+  # ── Temperature thresholds (°C) ─────────────────────────────────────────
+  # Adjust to your species — e.g. Discus: 28–30°C, Goldfish: 18–22°C
   fish_tank_temp_min:
     name: "🌡 Min Safe Temp"
-    min: 60
-    max: 78
+    min: 10
+    max: 26
     step: 0.5
-    initial: 72
-    unit_of_measurement: "°F"
+    initial: 22
+    unit_of_measurement: "°C"
     icon: mdi:thermometer-low
     mode: box
 
   fish_tank_temp_max:
     name: "🌡 Max Safe Temp"
-    min: 74
-    max: 90
+    min: 20
+    max: 35
     step: 0.5
-    initial: 80
-    unit_of_measurement: "°F"
+    initial: 27
+    unit_of_measurement: "°C"
     icon: mdi:thermometer-high
     mode: box
 
