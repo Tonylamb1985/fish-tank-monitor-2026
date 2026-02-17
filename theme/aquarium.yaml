@@ -1,0 +1,163 @@
+###############################################################################
+# 🐠 AQUARIUM THEME — Home Assistant Custom Theme
+# ─────────────────────────────────────────────────────────────────────────────
+# A beautiful underwater aquarium theme with deep ocean blues, frosted glass
+# cards, and cyan accents. Applies globally to all dashboards and views.
+#
+# INSTALL:
+#   1. Create folder: config/themes/
+#   2. Save this file as: config/themes/aquarium.yaml
+#   3. Add to configuration.yaml:
+#        frontend:
+#          themes: !include_dir_merge_named themes
+#   4. Restart Home Assistant
+#   5. Go to your profile (bottom left) → Theme → select "Aquarium"
+#
+# APPLY TO DASHBOARD ONLY:
+#   Edit dashboard → ⋮ → Edit Dashboard → theme: aquarium (in raw config)
+###############################################################################
+
+aquarium:
+  
+  # ── PRIMARY UI COLORS ────────────────────────────────────────────────────
+  primary-color: "#00b8d4"                    # Cyan - primary accent
+  accent-color: "#26c6da"                     # Light cyan - secondary accent
+  dark-primary-color: "#006080"               # Deep cyan
+  light-primary-color: "#80deea"              # Pale cyan
+  
+  # ── TEXT COLORS ──────────────────────────────────────────────────────────
+  primary-text-color: "#e0f7fa"               # Very light cyan (high contrast)
+  text-primary-color: "#ffffff"               # White text on primary
+  secondary-text-color: "#b0bec5"             # Light blue-grey
+  disabled-text-color: "#607d8b"              # Blue-grey
+  label-badge-border-color: "#00b8d4"         # Cyan
+  
+  # ── BACKGROUND COLORS ────────────────────────────────────────────────────
+  # Deep ocean gradient - light at top (water surface), dark at bottom (ocean floor)
+  primary-background-color: "#001a33"         # Deep navy (main background)
+  secondary-background-color: "#002244"       # Slightly lighter navy
+  divider-color: "rgba(0,180,220,0.2)"        # Cyan divider lines
+  
+  # ── CARD STYLING ─────────────────────────────────────────────────────────
+  # Frosted glass aquarium panel effect
+  card-background-color: "rgba(0,80,120,0.4)" # Translucent blue glass
+  paper-card-background-color: "rgba(0,80,120,0.4)"
+  
+  # ── HEADER & SIDEBAR ─────────────────────────────────────────────────────
+  app-header-background-color: "#001a33"      # Deep navy header
+  app-header-text-color: "#e0f7fa"            # Light cyan text
+  sidebar-background-color: "#001a33"         # Deep navy sidebar
+  sidebar-icon-color: "#80deea"               # Pale cyan icons
+  sidebar-text-color: "#e0f7fa"               # Light cyan text
+  sidebar-selected-background-color: "rgba(0,150,200,0.3)"
+  sidebar-selected-icon-color: "#00e5ff"      # Bright cyan when selected
+  sidebar-selected-text-color: "#00e5ff"
+  
+  # ── STATES & TOGGLES ─────────────────────────────────────────────────────
+  state-icon-color: "#80deea"                 # Default icon color
+  state-icon-active-color: "#00e5ff"          # Bright cyan when active
+  state-icon-unavailable-color: "#546e7a"     # Dark blue-grey
+  
+  # Switch colors
+  switch-checked-button-color: "#00e5ff"      # Bright cyan toggle
+  switch-checked-track-color: "#006080"       # Deep cyan track
+  switch-unchecked-button-color: "#546e7a"    # Grey toggle when off
+  switch-unchecked-track-color: "#37474f"     # Dark grey track when off
+  
+  # Slider colors
+  slider-color: "#00b8d4"                     # Cyan slider
+  slider-secondary-color: "#004d66"           # Dark cyan background
+  slider-track-color: "#004d66"               # Track color
+  
+  # ── TABLE & LIST COLORS ──────────────────────────────────────────────────
+  table-row-background-color: "rgba(0,60,90,0.3)"
+  table-row-alternative-background-color: "rgba(0,80,120,0.3)"
+  data-table-background-color: "rgba(0,40,60,0.4)"
+  
+  # ── INPUT FIELDS ─────────────────────────────────────────────────────────
+  input-idle-line-color: "rgba(0,180,220,0.4)"
+  input-hover-line-color: "#00b8d4"
+  input-disabled-line-color: "rgba(96,125,139,0.3)"
+  input-outlined-idle-border-color: "rgba(0,180,220,0.4)"
+  input-outlined-hover-border-color: "#00b8d4"
+  input-fill-color: "rgba(0,60,90,0.5)"
+  input-ink-color: "#e0f7fa"
+  input-label-ink-color: "#b0bec5"
+  input-disabled-ink-color: "#607d8b"
+  
+  # ── CHIPS & BADGES ───────────────────────────────────────────────────────
+  label-badge-red: "#f44336"                  # Critical alert
+  label-badge-blue: "#00b8d4"                 # Info
+  label-badge-green: "#4caf50"                # Success
+  label-badge-yellow: "#ffc107"               # Warning
+  label-badge-grey: "#9e9e9e"                 # Neutral
+  
+  # ── MARKDOWN & CODE ──────────────────────────────────────────────────────
+  markdown-code-background-color: "rgba(0,40,60,0.6)"
+  code-editor-background-color: "#001a33"
+  
+  # ── ENERGY DASHBOARD ─────────────────────────────────────────────────────
+  energy-grid-consumption-color: "#00b8d4"
+  energy-grid-return-color: "#26c6da"
+  energy-solar-color: "#ffc107"
+  energy-battery-in-color: "#4caf50"
+  energy-battery-out-color: "#f44336"
+  energy-gas-color: "#ff9800"
+  energy-water-color: "#00e5ff"
+  
+  # ── GRAPH COLORS ─────────────────────────────────────────────────────────
+  # History graph default colors
+  history-color-1: "#00b8d4"                  # Cyan
+  history-color-2: "#26c6da"                  # Light cyan
+  history-color-3: "#80deea"                  # Pale cyan
+  history-color-4: "#4dd0e1"                  # Aqua
+  history-color-5: "#00acc1"                  # Dark cyan
+  
+  # ── BUTTONS & CONTROLS ───────────────────────────────────────────────────
+  mdc-theme-primary: "#00b8d4"                # Material design primary
+  mdc-theme-secondary: "#26c6da"              # Material design secondary
+  mdc-theme-on-primary: "#ffffff"             # Text on primary
+  mdc-theme-on-secondary: "#ffffff"           # Text on secondary
+  
+  # ── PAPER ELEMENTS (legacy) ──────────────────────────────────────────────
+  paper-grey-50: "#fafafa"
+  paper-grey-200: "#eeeeee"
+  paper-item-icon-color: "#80deea"            # List item icons
+  paper-item-icon-active-color: "#00e5ff"     # Active item icons
+  
+  # ── SHADOWS & EFFECTS ────────────────────────────────────────────────────
+  # Custom shadow variables for aquarium glow effect
+  ha-card-box-shadow: >
+    0 4px 20px rgba(0,150,200,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.08)
+  ha-card-border-radius: "16px"
+  ha-card-border-width: "2px"
+  ha-card-border-color: "rgba(0,180,220,0.3)"
+  
+  # ── CUSTOM CSS VARIABLES ─────────────────────────────────────────────────
+  # These apply additional aquarium styling globally
+  
+  # Lovelace view background (ocean depth gradient)
+  lovelace-background: >
+    linear-gradient(180deg, 
+      #001a33 0%, 
+      #002244 20%, 
+      #003355 40%, 
+      #004466 60%, 
+      #005577 80%, 
+      #006688 100%)
+  
+  # Card backdrop filter (frosted glass)
+  card-mod-card: |
+    ha-card {
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(0,180,220,0.3);
+      box-shadow: 
+        0 4px 20px rgba(0,150,200,0.2),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+  
+  # Custom modes
+  modes:
+    light: {}  # Disable light mode - aquarium is dark only
+    dark: {}   # This theme IS the dark mode
