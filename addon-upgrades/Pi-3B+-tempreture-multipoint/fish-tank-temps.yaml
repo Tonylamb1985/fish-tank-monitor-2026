@@ -133,8 +133,7 @@ sensor:
     internal: true  # Hide raw sensor, only expose calibrated version
     accuracy_decimals: 2
     filters:
-      # Convert Celsius to Fahrenheit (remove if you want Celsius)
-      - lambda: return x * 9.0 / 5.0 + 32.0;
+      # Celsius — no conversion needed
       # Smoothing filter (reduces noise)
       - sliding_window_moving_average:
           window_size: 5
@@ -144,7 +143,7 @@ sensor:
   - platform: template
     name: "Fish Tank Temperature"
     id: fish_tank_temperature
-    unit_of_measurement: "°F"
+    unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
     accuracy_decimals: 1
@@ -161,7 +160,6 @@ sensor:
     internal: true
     accuracy_decimals: 2
     filters:
-      - lambda: return x * 9.0 / 5.0 + 32.0;  # C to F
       - sliding_window_moving_average:
           window_size: 5
           send_every: 1
@@ -169,7 +167,7 @@ sensor:
   - platform: template
     name: "Sump Temperature"
     id: sump_temperature
-    unit_of_measurement: "°F"
+    unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
     accuracy_decimals: 1
@@ -186,7 +184,6 @@ sensor:
     internal: true
     accuracy_decimals: 2
     filters:
-      - lambda: return x * 9.0 / 5.0 + 32.0;  # C to F
       - sliding_window_moving_average:
           window_size: 5
           send_every: 1
@@ -194,7 +191,7 @@ sensor:
   - platform: template
     name: "ATO Reservoir Temperature"
     id: ato_reservoir_temperature
-    unit_of_measurement: "°F"
+    unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
     accuracy_decimals: 1
@@ -208,7 +205,7 @@ sensor:
   - platform: template
     name: "Tank-Sump Temperature Delta"
     id: tank_sump_delta
-    unit_of_measurement: "°F"
+    unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
     accuracy_decimals: 1
@@ -239,7 +236,7 @@ binary_sensor:
   - platform: status
     name: "Temperature Monitor Status"
 
-  # Temperature Gradient Alert (Tank-Sump delta >3°F)
+  # Temperature Gradient Alert (Tank-Sump delta >1.5°C)
   - platform: template
     name: "Temperature Stratification Alert"
     id: temp_stratification_alert
