@@ -1,0 +1,138 @@
+# 🐠 Aquarium Theme — Installation Guide
+
+## Step 1 — Add Theme Support to configuration.yaml
+
+Open your `config/configuration.yaml` and add:
+
+```yaml
+frontend:
+  themes: !include_dir_merge_named themes
+```
+
+**If you already have a `frontend:` section**, just add the `themes:` line underneath it.
+
+---
+
+## Step 2 — Create the themes folder
+
+Create a new folder in your Home Assistant config directory:
+
+```
+config/
+└── themes/          ← create this folder
+```
+
+---
+
+## Step 3 — Copy the theme file
+
+Copy `aquarium.yaml` into the `themes/` folder:
+
+```
+config/
+└── themes/
+    └── aquarium.yaml
+```
+
+---
+
+## Step 4 — Restart Home Assistant
+
+Settings → System → Restart
+
+---
+
+## Step 5 — Apply the Theme
+
+### Option A — Apply globally (all dashboards for you)
+1. Click your profile icon (bottom left corner)
+2. Scroll down to **Theme**
+3. Select **Aquarium** from the dropdown
+4. Refresh the page
+
+### Option B — Apply to one dashboard only
+1. Open the dashboard you want to theme
+2. Click ⋮ (top right) → **Edit Dashboard**
+3. Click ⋮ again → **Raw Configuration Editor**
+4. At the very top, add:
+   ```yaml
+   theme: aquarium
+   title: 🐟 Freshwater Tank
+   ```
+5. Save
+
+### Option C — Apply backend-selected theme
+1. Settings → System → General
+2. Set **Default theme** to **Aquarium**
+3. All users will now see the aquarium theme by default
+
+---
+
+## What You'll See
+
+✅ **Deep ocean gradient background** — transitions from navy at top to teal at bottom  
+✅ **Frosted glass cards** — all cards become translucent aqua panels with blur  
+✅ **Cyan accents** — all interactive elements use ocean blue/cyan colors  
+✅ **Aquarium glow** — soft cyan shadows around all cards  
+✅ **Glass reflections** — subtle white highlights simulate glass surfaces  
+
+---
+
+## Customizing the Theme
+
+Edit `config/themes/aquarium.yaml` to adjust:
+
+- **Card transparency**: Change `card-background-color: "rgba(0,80,120,0.4)"` 
+  - Higher last number = less transparent (e.g., `0.6` for more solid cards)
+  
+- **Accent color**: Change `primary-color: "#00b8d4"` to any hex color
+  - Try `#00e676` for green, `#e040fb` for purple, `#ff6e40` for coral
+
+- **Background gradient**: Edit the `lovelace-background` gradient stops
+  - Change hex colors in the `linear-gradient(...)` definition
+
+After editing, **Developer Tools → Services → frontend.reload_themes** to apply changes without restart.
+
+---
+
+## Reverting to Default Theme
+
+1. Click your profile icon (bottom left)
+2. Theme → **Backend-selected** (or **Default**)
+3. Refresh the page
+
+---
+
+## Troubleshooting
+
+**Theme doesn't appear in dropdown**
+- Check `configuration.yaml` has `frontend: themes: !include_dir_merge_named themes`
+- Verify file is at `config/themes/aquarium.yaml`
+- Restart HA again
+
+**Theme applied but cards still look default**
+- Some custom cards ignore theme variables
+- The fish tank dashboard already has inline styling that overrides the theme
+- For full effect, use the theme globally + the aquarium-styled dashboard
+
+**Background gradient not showing**
+- The `lovelace-background` variable only works on some dashboard types
+- For custom:grid-layout dashboards, background is set per-view in the YAML
+
+**Cards look too transparent**
+- Edit `aquarium.yaml`
+- Change `card-background-color: "rgba(0,80,120,0.6)"` (0.6 = more solid)
+- Reload themes
+
+---
+
+## Using with Other Dashboards
+
+The Aquarium theme works beautifully with:
+- Energy dashboard
+- History graphs (cyan line colors)
+- Logbook (frosted glass entries)
+- Map (aqua markers)
+- Media browser (translucent panels)
+
+All HA dashboards will automatically use aquarium styling when theme is active.
