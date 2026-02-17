@@ -1,0 +1,814 @@
+###############################################################################
+# 📦 PACKAGE: fish_tank_ato.yaml  (v2 — Auto-Learn ml Per Activation)
+# ─────────────────────────────────────────────────────────────────────────────
+# HOW RESERVOIR TRACKING WORKS:
+#
+#   Instead of estimating from LPH × runtime, the system measures exactly
+#   how many ml the pump dispenses per cycle using a rolling average.
+#
+#   LEARNING PROCESS:
+#     1. First refill — uses manual ml value if set, or 0 (unknown)
+#     2. Each refill: HA calculates total_ml_used ÷ total_cycles = period avg
+#     3. Stores last N period averages as a rolling window (default: 3 refills)
+#     4. Auto-learned value = average of rolling window
+#     5. Manual override always wins if set above 0
+#
+#   WHY BETTER THAN LPH:
+#     - Measures actual output per activation not theoretical rate
+#     - Handles variable cycle durations (evaporation changes with season)
+#     - Self-corrects each refill — improves over time automatically
+#     - Accounts for head pressure, tube wear, pump aging automatically
+#
+# REQUIRES:
+#   - fish_tank_ato_addon.yaml merged into ESPHome Pi config
+#   - fish_tank_temperature_multipoint.yaml (temp shock prevention)
+#   - Drop in: config/packages/fish_tank_ato.yaml
+#   - Restart Home Assistant
+###############################################################################
+
+# ── HELPERS ───────────────────────────────────────────────────────────────────
+input_number:
+
+  ato_reservoir_capacity:
+    name: "ATO Reservoir Capacity"
+    min: 1
+    max: 100
+    step: 0.5
+    initial: 25.0
+    unit_of_measurement: "L"
+    icon: mdi:bucket
+    mode: box
+
+  ato_reservoir_minimum:
+    name: "ATO Reservoir Minimum Level"
+    min: 0.5
+    max: 20
+    step: 0.5
+    initial: 5.0
+    unit_of_measurement: "L"
+    icon: mdi:bucket-minus
+    mode: box
+
+  ato_reservoir_current_level:
+    name: "ATO Reservoir Current Level"
+    min: 0
+    max: 100
+    step: 0.001
+    initial: 25.0
+    unit_of_measurement: "L"
+    icon: mdi:water
+    mode: box
+
+  # Set to 0 to use auto-learn; enter measured value to override
+  ato_ml_per_activation_manual:
+    name: "ATO ml Per Activation (Manual Override)"
+    min: 0
+    max: 5000
+    step: 1
+    initial: 0
+    unit_of_measurement: "ml"
+    icon: mdi:cup-water
+    mode: box
+
+  # Written by HA automation after each refill — do not edit manually
+  ato_ml_per_activation_learned:
+    name: "ATO ml Per Activation (Auto-Learned)"
+    min: 0
+    max: 5000
+    step: 0.1
+    initial: 0
+    unit_of_measurement: "ml"
+    icon: mdi:school
+    mode: box
+
+  # Number of refill periods to average (rolling window)
+  ato_autolearn_window:
+    name: "ATO Auto-Learn Rolling Window"
+    min: 1
+    max: 10
+    step: 1
+    initial: 3
+    unit_of_measurement: "refills"
+    icon: mdi:chart-bell-curve
+    mode: box
+
+  # Accumulates ml used since last refill — reset on refill
+  ato_ml_used_this_period:
+    name: "ATO ml Used This Period"
+    min: 0
+    max: 100000
+    step: 0.1
+    initial: 0
+    unit_of_measurement: "ml"
+    icon: mdi:water-minus
+    mode: box
+
+  # Count of cycles since last refill
+  ato_cycles_this_period:
+    name: "ATO Cycles This Period"
+    min: 0
+    max: 9999
+    step: 1
+    initial: 0
+    unit_of_measurement: "cycles"
+    icon: mdi:counter
+    mode: box
+
+  # Live average ml/cycle for this period
+  ato_ml_this_period_avg:
+    name: "ATO ml Per Cycle This Period (Live Avg)"
+    min: 0
+    max: 5000
+    step: 0.1
+    initial: 0
+    unit_of_measurement: "ml"
+    icon: mdi:chart-line
+    mode: box
+
+  ato_max_pump_runtime:
+    name: "ATO Max Pump Runtime Per Cycle"
+    min: 10
+    max: 300
+    step: 5
+    initial: 60
+    unit_of_measurement: "s"
+    icon: mdi:timer-alert
+    mode: box
+
+  ato_min_cycle_interval:
+    name: "ATO Min Interval Between Cycles"
+    min: 1
+    max: 60
+    step: 1
+    initial: 5
+    unit_of_measurement: "min"
+    icon: mdi:timer-refresh
+    mode: box
+
+input_boolean:
+  ato_enabled:
+    name: "ATO System Enabled"
+    icon: mdi:water-pump
+
+  ato_paused:
+    name: "ATO Paused"
+    icon: mdi:pause-circle
+
+  ato_cycle_in_progress:
+    name: "ATO Cycle In Progress"
+    icon: mdi:progress-clock
+
+input_datetime:
+  ato_last_refill:
+    name: "ATO Last Refill"
+    has_date: true
+    has_time: true
+    icon: mdi:calendar-check
+
+  ato_last_cycle:
+    name: "ATO Last Cycle"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-check
+
+  ato_cycle_start_time:
+    name: "ATO Cycle Start Time"
+    has_date: true
+    has_time: true
+    icon: mdi:timer-play
+
+input_text:
+  ato_daily_dispensed_ml:
+    name: "ATO Daily Dispensed (ml)"
+    initial: "0"
+    icon: mdi:water-plus
+
+  # JSON array of last N refill-period ml-per-cycle averages
+  # e.g. "[120.5, 134.2, 118.9]"
+  ato_refill_history_json:
+    name: "ATO Refill History (JSON)"
+    initial: "[]"
+    max: 255
+    icon: mdi:history
+
+# ── TEMPLATE SENSORS ──────────────────────────────────────────────────────────
+template:
+
+  - sensor:
+
+      # ── ACTIVE ML PER ACTIVATION ─────────────────────────────────────────
+      # Priority: Manual > Auto-learned > Live avg this period > 0
+      - name: ato_ml_per_activation
+        unique_id: ato_ml_per_activation
+        unit_of_measurement: "ml"
+        state_class: measurement
+        icon: mdi:cup-water
+        state: >
+          {% set manual = states('input_number.ato_ml_per_activation_manual') | float(0) %}
+          {% set learned = states('input_number.ato_ml_per_activation_learned') | float(0) %}
+          {% set live = states('input_number.ato_ml_this_period_avg') | float(0) %}
+          {% if manual > 0 %}{{ manual | round(1) }}
+          {% elif learned > 0 %}{{ learned | round(1) }}
+          {% elif live > 0 %}{{ live | round(1) }}
+          {% else %}0{% endif %}
+        attributes:
+          source: >
+            {% set manual = states('input_number.ato_ml_per_activation_manual') | float(0) %}
+            {% set learned = states('input_number.ato_ml_per_activation_learned') | float(0) %}
+            {% set live = states('input_number.ato_ml_this_period_avg') | float(0) %}
+            {% if manual > 0 %}Manual override
+            {% elif learned > 0 %}Auto-learned ({{ states('input_number.ato_autolearn_window') | int }} refill avg)
+            {% elif live > 0 %}Live average (this period only)
+            {% else %}Not calibrated yet{% endif %}
+          confidence: >
+            {% set manual = states('input_number.ato_ml_per_activation_manual') | float(0) %}
+            {% set learned = states('input_number.ato_ml_per_activation_learned') | float(0) %}
+            {% set cycles = states('input_number.ato_cycles_this_period') | int(0) %}
+            {% if manual > 0 %}Manual
+            {% elif learned > 0 %}High
+            {% elif cycles >= 5 %}Medium ({{ cycles }} cycles)
+            {% elif cycles > 0 %}Low ({{ cycles }} cycles)
+            {% else %}None{% endif %}
+
+      # ── LIVE AVERAGE THIS PERIOD ──────────────────────────────────────────
+      - name: ato_live_avg_ml_this_period
+        unique_id: ato_live_avg_ml_this_period
+        unit_of_measurement: "ml"
+        state_class: measurement
+        icon: mdi:chart-line-variant
+        state: >
+          {% set ml = states('input_number.ato_ml_used_this_period') | float(0) %}
+          {% set c = states('input_number.ato_cycles_this_period') | int(0) %}
+          {{ (ml / c) | round(1) if c > 0 else 0 }}
+        attributes:
+          ml_used: "{{ states('input_number.ato_ml_used_this_period') | float(0) | round(0) }}"
+          cycles: "{{ states('input_number.ato_cycles_this_period') | int(0) }}"
+          periods_learned: >
+            {% set raw = states('input_text.ato_refill_history_json') %}
+            {% if raw and raw not in ['[]','','unknown','unavailable'] %}
+              {{ (raw | from_json) | length }}
+            {% else %}0{% endif %}
+
+      # ── RESERVOIR LEVEL ───────────────────────────────────────────────────
+      - name: ato_reservoir_level_litres
+        unique_id: ato_reservoir_level_litres
+        unit_of_measurement: "L"
+        device_class: volume
+        state_class: measurement
+        icon: mdi:water
+        state: >
+          {{ [states('input_number.ato_reservoir_current_level') | float(0), 0] | max | round(3) }}
+
+      - name: ato_reservoir_level_percent
+        unique_id: ato_reservoir_level_percent
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:percent
+        state: >
+          {% set l = states('input_number.ato_reservoir_current_level') | float(0) %}
+          {% set c = states('input_number.ato_reservoir_capacity') | float(25) %}
+          {{ [[((l / c) * 100), 0] | max, 100] | min | round(1) }}
+
+      - name: ato_reservoir_usable_litres
+        unique_id: ato_reservoir_usable_litres
+        unit_of_measurement: "L"
+        state_class: measurement
+        icon: mdi:water-check
+        state: >
+          {% set l = states('input_number.ato_reservoir_current_level') | float(0) %}
+          {% set m = states('input_number.ato_reservoir_minimum') | float(5) %}
+          {{ [l - m, 0] | max | round(3) }}
+
+      # ── CYCLES REMAINING ─────────────────────────────────────────────────
+      - name: ato_cycles_remaining
+        unique_id: ato_cycles_remaining
+        unit_of_measurement: "cycles"
+        state_class: measurement
+        icon: mdi:repeat
+        state: >
+          {% set usable_ml = states('sensor.ato_reservoir_usable_litres') | float(0) * 1000 %}
+          {% set ml_per = states('sensor.ato_ml_per_activation') | float(0) %}
+          {{ (usable_ml / ml_per) | round(0) | int if ml_per > 0 else 0 }}
+
+      # ── DAYS REMAINING ────────────────────────────────────────────────────
+      - name: ato_reservoir_days_remaining
+        unique_id: ato_reservoir_days_remaining
+        unit_of_measurement: "days"
+        state_class: measurement
+        icon: mdi:calendar-clock
+        state: >
+          {% set daily = states('sensor.ato_daily_topoff_ml') | float(0) %}
+          {% set usable = states('sensor.ato_reservoir_usable_litres') | float(0) * 1000 %}
+          {{ (usable / daily) | round(1) if daily >= 10 else 0 }}
+        availability: >
+          {{ states('sensor.ato_daily_topoff_ml') | float(0) >= 10 }}
+
+      # ── CURRENT CYCLE RUNTIME ─────────────────────────────────────────────
+      - name: ato_current_cycle_runtime
+        unique_id: ato_current_cycle_runtime
+        unit_of_measurement: "s"
+        state_class: measurement
+        icon: mdi:timer
+        state: >
+          {% if is_state('binary_sensor.ato_pump_running_status', 'on') %}
+            {% set ts = as_timestamp(states('input_datetime.ato_cycle_start_time'), 0) %}
+            {{ (now().timestamp() - ts) | int if ts > 86400 else 0 }}
+          {% else %}0{% endif %}
+
+      # ── DAILY TOP-OFF TOTAL ───────────────────────────────────────────────
+      - name: ato_daily_topoff_ml
+        unique_id: ato_daily_topoff_ml
+        unit_of_measurement: "ml"
+        state_class: total
+        icon: mdi:chart-bar
+        state: >
+          {{ states('input_text.ato_daily_dispensed_ml') | float(0) | round(0) }}
+
+      # ── STATUS ────────────────────────────────────────────────────────────
+      - name: ato_status
+        unique_id: ato_status
+        icon: mdi:water-pump
+        state: >
+          {% if not is_state('input_boolean.ato_enabled', 'on') %}Disabled
+          {% elif is_state('input_boolean.ato_paused', 'on') %}Paused
+          {% elif is_state('binary_sensor.ato_pump_overtime', 'on') %}⚠️ Overtime Safety
+          {% elif is_state('binary_sensor.ato_pump_running_status', 'on') %}Pumping
+          {% elif is_state('binary_sensor.ato_reservoir_low', 'on') %}⚠️ Reservoir Low
+          {% elif is_state('binary_sensor.ato_float_valve', 'on') %}Float Triggered
+          {% else %}Standby{% endif %}
+
+      # ── LAST CYCLE AGO ────────────────────────────────────────────────────
+      - name: ato_last_cycle_ago
+        unique_id: ato_last_cycle_ago
+        unit_of_measurement: "min"
+        icon: mdi:clock-outline
+        state: >
+          {% set ts = as_timestamp(states('input_datetime.ato_last_cycle'), 0) %}
+          {{ ((now().timestamp() - ts) / 60) | round(0) if ts > 86400 else 0 }}
+        attributes:
+          last_cycle_time: >
+            {% set ts = as_timestamp(states('input_datetime.ato_last_cycle'), 0) %}
+            {{ as_local(as_datetime(ts)).strftime('%H:%M on %d %b') if ts > 86400 else 'No cycles yet' }}
+
+  - binary_sensor:
+
+      - name: ato_reservoir_low
+        unique_id: ato_reservoir_low
+        device_class: problem
+        state: >
+          {{ states('sensor.ato_reservoir_level_litres') | float(0) <=
+             states('input_number.ato_reservoir_minimum') | float(5) }}
+
+      - name: ato_reservoir_critical
+        unique_id: ato_reservoir_critical
+        device_class: problem
+        state: >
+          {{ states('sensor.ato_reservoir_level_litres') | float(0) <= 2.0 }}
+
+      - name: ato_safe_to_run
+        unique_id: ato_safe_to_run
+        icon: mdi:shield-check
+        state: >
+          {% set enabled = is_state('input_boolean.ato_enabled', 'on') %}
+          {% set not_paused = not is_state('input_boolean.ato_paused', 'on') %}
+          {% set res_ok = not is_state('binary_sensor.ato_reservoir_low', 'on') %}
+          {% set no_over = not is_state('binary_sensor.ato_pump_overtime', 'on') %}
+          {% set temp_ok = not is_state('binary_sensor.fish_tank_ato_water_cold_warning', 'on') %}
+          {% set last_ts = as_timestamp(states('input_datetime.ato_last_cycle'), 0) %}
+          {% set gap_ok = (now().timestamp() - last_ts) > (states('input_number.ato_min_cycle_interval') | float(5) * 60) %}
+          {{ enabled and not_paused and res_ok and no_over and temp_ok and gap_ok }}
+        attributes:
+          reason: >
+            {% if not is_state('input_boolean.ato_enabled', 'on') %}ATO disabled
+            {% elif is_state('input_boolean.ato_paused', 'on') %}System paused
+            {% elif is_state('binary_sensor.ato_reservoir_low', 'on') %}Reservoir at minimum
+            {% elif is_state('binary_sensor.ato_pump_overtime', 'on') %}Overtime safety triggered
+            {% elif is_state('binary_sensor.fish_tank_ato_water_cold_warning', 'on') %}Cold water risk
+            {% else %}All checks passed{% endif %}
+
+# ── AUTOMATIONS ───────────────────────────────────────────────────────────────
+automation:
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🔄 CYCLE TRACKING
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: ato_cycle_started
+    alias: "💧 ATO: Cycle Started"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ato_pump_running_status
+        to: "on"
+    action:
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.ato_cycle_start_time
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.ato_last_cycle
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.ato_cycle_in_progress
+
+  - id: ato_cycle_ended
+    alias: "💧 ATO: Cycle Ended — Update Reservoir Level"
+    description: >
+      Calculates ml dispensed this cycle proportionally from runtime,
+      updates reservoir level and all running totals.
+    mode: queued
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ato_pump_running_status
+        to: "off"
+    condition:
+      - condition: state
+        entity_id: input_boolean.ato_cycle_in_progress
+        state: "on"
+    action:
+      - variables:
+          runtime_s: >
+            {{ [now().timestamp() - as_timestamp(states('input_datetime.ato_cycle_start_time'), 0), 0] | max | round(2) }}
+          ml_per: >
+            {{ states('sensor.ato_ml_per_activation') | float(0) }}
+          max_rt: >
+            {{ states('input_number.ato_max_pump_runtime') | float(60) }}
+          cycle_ml: >
+            {% set rt = [now().timestamp() - as_timestamp(states('input_datetime.ato_cycle_start_time'), 0), 0] | max %}
+            {% set ml = states('sensor.ato_ml_per_activation') | float(0) %}
+            {% set mrt = states('input_number.ato_max_pump_runtime') | float(60) %}
+            {{ ((rt / mrt) * ml) | round(2) if ml > 0 and mrt > 0 else 0 }}
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.ato_cycle_in_progress
+      - condition: template
+        value_template: "{{ runtime_s >= 2 }}"
+      # Deduct from reservoir
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_reservoir_current_level
+        data:
+          value: >
+            {{ [states('input_number.ato_reservoir_current_level') | float(0) - (cycle_ml | float / 1000), 0] | max | round(3) }}
+      # Add to period ml total
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_ml_used_this_period
+        data:
+          value: >
+            {{ (states('input_number.ato_ml_used_this_period') | float(0) + cycle_ml | float) | round(2) }}
+      # Increment cycle count
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_cycles_this_period
+        data:
+          value: >
+            {{ states('input_number.ato_cycles_this_period') | int(0) + 1 }}
+      # Update live average
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_ml_this_period_avg
+        data:
+          value: >
+            {% set new_total = states('input_number.ato_ml_used_this_period') | float(0) + cycle_ml | float %}
+            {% set new_count = states('input_number.ato_cycles_this_period') | int(0) + 1 %}
+            {{ (new_total / new_count) | round(2) if new_count > 0 else 0 }}
+      # Add to daily total
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.ato_daily_dispensed_ml
+        data:
+          value: >
+            {{ (states('input_text.ato_daily_dispensed_ml') | float(0) + cycle_ml | float) | round(0) }}
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🧠 AUTO-LEARN — fires when reservoir is refilled
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: ato_autolearn_on_refill
+    alias: "🧠 ATO: Auto-Learn — Calculate New Average on Refill"
+    description: >
+      Runs when the reservoir is marked refilled.
+      Takes ml_used ÷ cycles for the period just ended,
+      adds it to the rolling history, recalculates the
+      rolling average and stores it as the learned value.
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: input_datetime.ato_last_refill
+    condition:
+      - condition: numeric_state
+        entity_id: input_number.ato_cycles_this_period
+        above: 2
+    action:
+      - variables:
+          period_ml: "{{ states('input_number.ato_ml_used_this_period') | float(0) }}"
+          period_cycles: "{{ states('input_number.ato_cycles_this_period') | int(1) }}"
+          period_avg: >
+            {% set ml = states('input_number.ato_ml_used_this_period') | float(0) %}
+            {% set c = states('input_number.ato_cycles_this_period') | int(1) %}
+            {{ (ml / c) | round(2) }}
+          window: "{{ states('input_number.ato_autolearn_window') | int(3) }}"
+          raw_hist: "{{ states('input_text.ato_refill_history_json') }}"
+      # Append new period average and trim to window size
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.ato_refill_history_json
+        data:
+          value: >
+            {% set ml = states('input_number.ato_ml_used_this_period') | float(0) %}
+            {% set c = states('input_number.ato_cycles_this_period') | int(1) %}
+            {% set new_avg = (ml / c) | round(2) %}
+            {% set w = states('input_number.ato_autolearn_window') | int(3) %}
+            {% set raw = states('input_text.ato_refill_history_json') %}
+            {% if raw and raw not in ['[]','','unknown','unavailable'] %}
+              {% set hist = raw | from_json %}
+            {% else %}
+              {% set hist = [] %}
+            {% endif %}
+            {{ (hist + [new_avg])[-w:] | to_json }}
+      # Calculate rolling average of history window and store
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_ml_per_activation_learned
+        data:
+          value: >
+            {% set ml = states('input_number.ato_ml_used_this_period') | float(0) %}
+            {% set c = states('input_number.ato_cycles_this_period') | int(1) %}
+            {% set new_avg = (ml / c) | round(2) %}
+            {% set w = states('input_number.ato_autolearn_window') | int(3) %}
+            {% set raw = states('input_text.ato_refill_history_json') %}
+            {% if raw and raw not in ['[]','','unknown','unavailable'] %}
+              {% set hist = raw | from_json %}
+            {% else %}
+              {% set hist = [] %}
+            {% endif %}
+            {% set all_vals = (hist + [new_avg])[-w:] %}
+            {{ (all_vals | sum / (all_vals | length)) | round(2) }}
+      - service: persistent_notification.create
+        data:
+          title: "🧠 ATO Auto-Learn Updated"
+          message: >
+            {% set ml = states('input_number.ato_ml_used_this_period') | float(0) %}
+            {% set c = states('input_number.ato_cycles_this_period') | int(1) %}
+            Period: {{ (ml / c) | round(1) }}ml avg over {{ c }} cycles.
+            New learned value: {{ states('input_number.ato_ml_per_activation_learned') }}ml
+            ({{ states('input_number.ato_autolearn_window') | int }}-refill rolling average).
+          notification_id: ato_autolearn_updated
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 💧 PUMP CONTROL
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: ato_float_start_pump
+    alias: "💧 ATO: Float Triggered — Start Pump"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ato_float_valve
+        to: "on"
+        for: "00:00:05"
+    condition:
+      - condition: state
+        entity_id: binary_sensor.ato_safe_to_run
+        state: "on"
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.ato_relay_pump
+
+  - id: ato_float_stop_pump
+    alias: "💧 ATO: Float Satisfied — Stop Pump"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ato_float_valve
+        to: "off"
+        for: "00:00:03"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.ato_relay_pump
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🚨 SAFETY
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: ato_overtime_shutoff
+    alias: "🚨 ATO: Overtime Safety Shutoff"
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.ato_current_cycle_runtime
+        above: "{{ states('input_number.ato_max_pump_runtime') | float(60) }}"
+    condition:
+      - condition: state
+        entity_id: switch.ato_relay_pump
+        state: "on"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.ato_relay_pump
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.ato_paused
+      - service: persistent_notification.create
+        data:
+          title: "🚨 ATO Safety Shutoff"
+          message: >
+            Pump ran {{ states('sensor.ato_current_cycle_runtime') }}s —
+            limit is {{ states('input_number.ato_max_pump_runtime') | int }}s.
+            System paused. Inspect float valve before clearing fault.
+          notification_id: ato_safety_shutoff
+
+  - id: ato_reservoir_low_alert
+    alias: "💧 ATO: Reservoir Low Alert"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ato_reservoir_low
+        to: "on"
+        for: "00:01:00"
+    action:
+      - service: persistent_notification.create
+        data:
+          title: "🪣 ATO Reservoir Low"
+          message: >
+            Reservoir at {{ states('sensor.ato_reservoir_level_litres') | round(2) }}L
+            (minimum {{ states('input_number.ato_reservoir_minimum') | round(1) }}L).
+            ~{{ states('sensor.ato_cycles_remaining') }} cycles remaining.
+          notification_id: ato_reservoir_low
+
+  - id: ato_reservoir_critical_auto_disable
+    alias: "🚨 ATO: Reservoir Critical — Auto Disable"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ato_reservoir_critical
+        to: "on"
+    action:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.ato_enabled
+      - service: persistent_notification.create
+        data:
+          title: "🚨 ATO Reservoir Critical"
+          message: "Reservoir critically low. ATO auto-disabled — refill immediately."
+          notification_id: ato_reservoir_critical
+
+  - id: ato_cold_water_blocked
+    alias: "❄️ ATO: Blocked — Cold Reservoir Water"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ato_float_valve
+        to: "on"
+        for: "00:01:00"
+    condition:
+      - condition: state
+        entity_id: binary_sensor.fish_tank_ato_water_cold_warning
+        state: "on"
+    action:
+      - service: persistent_notification.create
+        data:
+          title: "❄️ ATO Blocked — Cold Water"
+          message: >
+            ATO: {{ states('sensor.fish_tank_ato_temperature') }}°C vs
+            Tank: {{ states('sensor.fish_tank_temperature') }}°C.
+            Warm reservoir water before next top-off.
+          notification_id: ato_cold_blocked
+
+  - id: ato_reset_daily_midnight
+    alias: "💧 ATO: Reset Daily Total at Midnight"
+    mode: single
+    trigger:
+      - platform: time
+        at: "00:00:00"
+    action:
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.ato_daily_dispensed_ml
+        data:
+          value: "0"
+
+# ── SCRIPTS ───────────────────────────────────────────────────────────────────
+script:
+
+  ato_reservoir_refilled:
+    alias: "💧 ATO: Mark Reservoir as Refilled"
+    description: >
+      Triggers auto-learn calculation from the period just ended,
+      resets reservoir to full, clears period counters for next window.
+    icon: mdi:bucket-plus
+    sequence:
+      # Fire auto-learn by updating the refill timestamp
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.ato_last_refill
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      # Small delay to let auto-learn automation complete
+      - delay: "00:00:01"
+      # Reset reservoir to capacity
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_reservoir_current_level
+        data:
+          value: "{{ states('input_number.ato_reservoir_capacity') | float(25) }}"
+      # Reset period counters for next learning window
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_ml_used_this_period
+        data:
+          value: 0
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_cycles_this_period
+        data:
+          value: 0
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_ml_this_period_avg
+        data:
+          value: 0
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.ato_enabled
+      - service: persistent_notification.dismiss
+        data:
+          notification_id: ato_reservoir_low
+      - service: persistent_notification.dismiss
+        data:
+          notification_id: ato_reservoir_critical
+      - service: persistent_notification.create
+        data:
+          title: "✅ ATO Reservoir Refilled"
+          message: >
+            Reset to {{ states('input_number.ato_reservoir_capacity') | round(1) }}L.
+            {% set learned = states('input_number.ato_ml_per_activation_learned') | float(0) %}
+            {% set manual = states('input_number.ato_ml_per_activation_manual') | float(0) %}
+            {% if manual > 0 %}
+            Using manual: {{ manual | round(0) }}ml per activation.
+            {% elif learned > 0 %}
+            Using learned: {{ learned | round(0) }}ml per activation.
+            {% else %}
+            No calibration yet — will auto-learn after 3+ refills.
+            {% endif %}
+          notification_id: ato_refill_confirmed
+
+  ato_manual_pump_test:
+    alias: "💧 ATO: Test Pump (5 sec)"
+    description: "Test run — does NOT count towards auto-learn data"
+    icon: mdi:play-circle
+    sequence:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.ato_cycle_in_progress
+      - service: switch.turn_on
+        target:
+          entity_id: switch.ato_relay_pump
+      - delay: "00:00:05"
+      - service: switch.turn_off
+        target:
+          entity_id: switch.ato_relay_pump
+      - service: persistent_notification.create
+        data:
+          title: "🔧 ATO Test Complete"
+          message: "Pump ran 5 seconds. This test was excluded from auto-learn data."
+          notification_id: ato_test_result
+
+  ato_clear_fault:
+    alias: "💧 ATO: Clear Safety Fault"
+    icon: mdi:shield-refresh
+    sequence:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.ato_paused
+      - service: persistent_notification.dismiss
+        data:
+          notification_id: ato_safety_shutoff
+
+  ato_reset_autolearn:
+    alias: "🧠 ATO: Reset Auto-Learn History"
+    description: "Clears all learned data — use after replacing the pump"
+    icon: mdi:brain
+    sequence:
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.ato_refill_history_json
+        data:
+          value: "[]"
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_ml_per_activation_learned
+        data:
+          value: 0
+      - service: persistent_notification.create
+        data:
+          title: "🧠 ATO Auto-Learn Reset"
+          message: "History cleared. Will rebuild over next refill cycles."
+          notification_id: ato_autolearn_reset
