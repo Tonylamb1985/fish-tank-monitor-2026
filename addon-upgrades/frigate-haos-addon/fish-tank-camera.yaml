@@ -1,0 +1,352 @@
+###############################################################################
+# 📦 PACKAGE: fish_tank_camera.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Frigate camera integration for fish tank monitoring
+# Provides AI-powered visual monitoring, fish counting, activity tracking,
+# and feeding event detection.
+#
+# REQUIRES:
+#   - Frigate add-on installed and configured (see frigate.yml)
+#   - Frigate integration added in HA
+#   - Camera pointing at fish tank
+#
+# INSTALL:
+#   Drop in: config/packages/fish_tank_camera.yaml
+#   Restart Home Assistant
+###############################################################################
+
+# ── TEMPLATE SENSORS ──────────────────────────────────────────────────────────
+template:
+
+  - binary_sensor:
+  
+      # ── FEEDING EVENT DETECTOR ──────────────────────────────────────────
+      # Detects when fish are actively feeding (surface activity + person nearby)
+      - name: fish_tank_feeding_event
+        unique_id: fish_tank_feeding_event
+        device_class: occupancy
+        icon: mdi:food-fish
+        state: >
+          {% set fish_surface = state_attr('camera.fish_tank', 'surface') | int(0) %}
+          {% set person = states('sensor.fish_tank_person_count') | int(0) %}
+          {% set last_fed = states('input_datetime.fish_tank_last_feeding') %}
+          {% set minutes_since_feed = 999 %}
+          {% if last_fed not in ['unknown','unavailable'] %}
+            {% set minutes_since_feed = ((now() - strptime(last_fed, '%Y-%m-%d %H:%M:%S')).total_seconds() / 60) | int %}
+          {% endif %}
+          {{ fish_surface > 2 and person > 0 and minutes_since_feed < 10 }}
+        attributes:
+          fish_at_surface: >
+            {{ state_attr('camera.fish_tank', 'surface') | int(0) }}
+          person_present: >
+            {{ states('sensor.fish_tank_person_count') | int(0) > 0 }}
+      
+      # ── FISH ACTIVITY LEVEL ─────────────────────────────────────────────
+      # Binary: active (fish moving) vs inactive (fish hiding/sick)
+      - name: fish_tank_fish_active
+        unique_id: fish_tank_fish_active
+        device_class: motion
+        icon: mdi:fish
+        state: >
+          {% set count = states('sensor.fish_tank_bird_count') | int(0) %}
+          {% set motion = states('binary_sensor.fish_tank_motion') %}
+          {{ count > 0 and motion == 'on' }}
+        attributes:
+          visible_fish: >
+            {{ states('sensor.fish_tank_bird_count') | int(0) }}
+          motion_detected: >
+            {{ states('binary_sensor.fish_tank_motion') == 'on' }}
+
+  - sensor:
+  
+      # ── FISH VISIBILITY PERCENTAGE ──────────────────────────────────────
+      # What % of your fish are currently visible to the camera
+      - name: fish_tank_fish_visibility
+        unique_id: fish_tank_fish_visibility
+        unit_of_measurement: "%"
+        icon: mdi:eye
+        state: >
+          {% set visible = states('sensor.fish_tank_bird_count') | int(0) %}
+          {% set total = 4 %}
+          {% if total > 0 %}
+            {{ ((visible / total) * 100) | round(0) }}
+          {% else %}
+            0
+          {% endif %}
+        attributes:
+          visible_count: >
+            {{ states('sensor.fish_tank_bird_count') | int(0) }}
+          total_fish: 4
+          missing: >
+            {{ 4 - (states('sensor.fish_tank_bird_count') | int(0)) }}
+      
+      # ── ACTIVITY SCORE (0-100) ──────────────────────────────────────────
+      # Composite score: fish count + motion + surface activity
+      - name: fish_tank_activity_score
+        unique_id: fish_tank_activity_score
+        unit_of_measurement: "%"
+        icon: mdi:chart-line
+        state: >
+          {% set fish_count = states('sensor.fish_tank_bird_count') | int(0) %}
+          {% set motion = 1 if states('binary_sensor.fish_tank_motion') == 'on' else 0 %}
+          {% set surface = state_attr('camera.fish_tank', 'surface') | int(0) %}
+          {% set score = (fish_count * 20) + (motion * 30) + (surface * 10) %}
+          {{ [score, 100] | min }}
+        attributes:
+          fish_visible: >
+            {{ states('sensor.fish_tank_bird_count') | int(0) }}
+          motion_active: >
+            {{ states('binary_sensor.fish_tank_motion') == 'on' }}
+          surface_activity: >
+            {{ state_attr('camera.fish_tank', 'surface') | int(0) }}
+      
+      # ── CAMERA HEALTH STATUS ────────────────────────────────────────────
+      - name: fish_tank_camera_status
+        unique_id: fish_tank_camera_status
+        icon: mdi:camera
+        state: >
+          {% set cam = states('camera.fish_tank') %}
+          {% set detect = states('switch.fish_tank_detect') %}
+          {% if cam == 'unavailable' %}
+            offline
+          {% elif detect == 'off' %}
+            detection_disabled
+          {% else %}
+            online
+          {% endif %}
+        attributes:
+          fps: >
+            {{ state_attr('camera.fish_tank', 'camera_fps') }}
+          detection_enabled: >
+            {{ states('switch.fish_tank_detect') == 'on' }}
+          recording_enabled: >
+            {{ states('switch.fish_tank_recordings') == 'on' }}
+      
+      # ── LAST MOTION TIMESTAMP ───────────────────────────────────────────
+      - name: fish_tank_last_motion
+        unique_id: fish_tank_last_motion
+        device_class: timestamp
+        icon: mdi:clock-outline
+        state: >
+          {{ state_attr('binary_sensor.fish_tank_motion', 'last_changed') }}
+
+# ── AUTOMATIONS ───────────────────────────────────────────────────────────────
+automation:
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 📹 CAMERA MONITORING ALERTS
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: fish_tank_camera_offline_alert
+    alias: "🐟 Fish Tank: Camera Offline Alert"
+    description: "Alerts when the tank camera goes offline"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: camera.fish_tank
+        to: unavailable
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "📹 Fish Tank Camera Offline"
+          message: >
+            Tank camera has been offline for 5 minutes.
+            Check Frigate add-on and camera connection.
+          data:
+            tag: fish_tank_camera
+
+  - id: fish_tank_all_fish_hidden_alert
+    alias: "🐟 Fish Tank: All Fish Hidden Alert"
+    description: >
+      Alerts if no fish have been visible for extended period
+      (could indicate sick/dead fish hiding, or camera issue)
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_fish_visibility
+        below: 10
+        for: "02:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+      # Only alert during daytime when lights should be on
+      - condition: time
+        after: "08:00:00"
+        before: "22:00:00"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Fish Tank: Low Visibility"
+          message: >
+            Less than 10% of fish visible for 2 hours.
+            Visible: {{ states('sensor.fish_tank_bird_count') }} / 4 fish.
+            Check if fish are hiding (stress/illness) or camera obstructed.
+          data:
+            tag: fish_tank_visibility
+
+  - id: fish_tank_feeding_auto_log
+    alias: "🐟 Fish Tank: Auto-Log Feeding Events"
+    description: >
+      Automatically logs feeding time when feeding event detected
+      (person near tank + fish at surface)
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.fish_tank_feeding_event
+        to: "on"
+        for: "00:00:30"
+    action:
+      # Only log if it's been >3 hours since last feed (prevent duplicate logs)
+      - condition: template
+        value_template: >
+          {% set last = states('input_datetime.fish_tank_last_feeding') %}
+          {% if last in ['unknown','unavailable'] %}
+            true
+          {% else %}
+            {{ (now() - strptime(last, '%Y-%m-%d %H:%M:%S')).total_seconds() > 10800 }}
+          {% endif %}
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.fish_tank_last_feeding
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🍽 Feeding Event Detected"
+          message: >
+            Camera detected feeding activity at {{ now().strftime('%H:%M') }}.
+            Automatically logged.
+
+  - id: fish_tank_low_activity_alert
+    alias: "🐟 Fish Tank: Low Activity Alert"
+    description: >
+      Alerts if fish activity is very low during daytime
+      (could indicate illness, water quality issue, or equipment failure)
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fish_tank_activity_score
+        below: 20
+        for: "03:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+      # Only during hours when fish should be active
+      - condition: time
+        after: "10:00:00"
+        before: "20:00:00"
+      # Don't alert if lights are off (fish naturally inactive)
+      - condition: state
+        entity_id: switch.fish_tank_led_lights
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Fish Tank: Low Activity"
+          message: >
+            Fish activity very low for 3 hours (score: {{ states('sensor.fish_tank_activity_score') }}/100).
+            Check water parameters and fish health.
+            Visible fish: {{ states('sensor.fish_tank_bird_count') }} / 4
+          data:
+            tag: fish_tank_activity
+
+  - id: fish_tank_snapshot_on_alert
+    alias: "🐟 Fish Tank: Snapshot on Water Quality Alert"
+    description: >
+      Automatically captures tank snapshot when water quality alerts fire
+      (helps diagnose cloudiness, algae, equipment issues visually)
+    mode: single
+    trigger:
+      - platform: state
+        entity_id:
+          - sensor.fish_tank_ammonia_status
+          - sensor.fish_tank_nitrite_status
+          - sensor.fish_tank_nitrate_status
+        to: critical
+    action:
+      - service: camera.snapshot
+        target:
+          entity_id: camera.fish_tank
+        data:
+          filename: >
+            /config/www/tank_snapshots/alert_{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg
+      - delay: "00:00:02"
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "📸 Tank Snapshot Captured"
+          message: >
+            Snapshot saved due to {{ trigger.to_state.attributes.friendly_name }} alert.
+            View at: /local/tank_snapshots/
+          data:
+            image: >
+              /local/tank_snapshots/alert_{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg
+
+# ── SCRIPTS ───────────────────────────────────────────────────────────────────
+script:
+
+  fish_tank_capture_snapshot:
+    alias: "🐟 Fish Tank: Capture Snapshot"
+    description: "Manually capture and save a tank snapshot"
+    icon: mdi:camera
+    sequence:
+      - service: camera.snapshot
+        target:
+          entity_id: camera.fish_tank
+        data:
+          filename: >
+            /config/www/tank_snapshots/manual_{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "📸 Tank Snapshot Saved"
+          message: >
+            Snapshot captured at {{ now().strftime('%H:%M on %d %b %Y') }}
+          data:
+            image: >
+              /local/tank_snapshots/manual_{{ now().strftime('%Y%m%d_%H%M%S') }}.jpg
+
+  fish_tank_timelapse_today:
+    alias: "🐟 Fish Tank: Generate Today's Timelapse"
+    description: >
+      Generate timelapse video from today's recordings
+      (requires ffmpeg and Frigate recordings enabled)
+    icon: mdi:movie-open
+    sequence:
+      - service: shell_command.generate_tank_timelapse
+        data:
+          date: "{{ now().strftime('%Y-%m-%d') }}"
+
+# ── SHELL COMMANDS (for timelapse generation) ─────────────────────────────────
+shell_command:
+  # Generate timelapse from Frigate recordings
+  # Requires: ffmpeg installed in HA container
+  generate_tank_timelapse: >
+    ffmpeg -y -pattern_type glob -i '/media/frigate/recordings/fish_tank/{{ date }}/*.mp4'
+    -vf "setpts=0.05*PTS,fps=30" -c:v libx264 -preset fast
+    /config/www/timelapses/tank_{{ date }}.mp4
+
+###############################################################################
+# SETUP REQUIRED
+###############################################################################
+#
+# 1. Create snapshot directories:
+#      mkdir -p /config/www/tank_snapshots
+#      mkdir -p /config/www/timelapses
+#
+# 2. Update notification service:
+#      Replace 'notify.mobile_app_your_phone' with your notifier
+#
+# 3. Adjust fish count:
+#      In fish_tank_fish_visibility sensor, change 'total: 4' to your actual count
+#
+# 4. Enable Frigate integration:
+#      Settings → Integrations → Add Frigate
+#      URL: http://localhost:5000
+#
+###############################################################################
