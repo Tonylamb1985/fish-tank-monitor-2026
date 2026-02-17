@@ -220,57 +220,54 @@ template:
         unit_of_measurement: days
         icon: mdi:water-sync
         state: >
-          {% set last = states('input_datetime.fish_tank_last_water_change') %}
-          {% set ts = as_timestamp(last, none) %}
-          {% if ts is none %}
+          {% set ts = as_timestamp(states('input_datetime.fish_tank_last_water_change'), 0) %}
+          {% if ts < 86400 %}
             0
           {% else %}
             {{ ((now().timestamp() - ts) / 86400) | round(1) }}
           {% endif %}
         attributes:
           logged: >
-            {{ as_timestamp(states('input_datetime.fish_tank_last_water_change'), none) is not none }}
+            {{ as_timestamp(states('input_datetime.fish_tank_last_water_change'), 0) > 86400 }}
           last_date: >
-            {% set last = states('input_datetime.fish_tank_last_water_change') %}
-            {{ last if as_timestamp(last, none) is not none else 'Not logged yet' }}
+            {% set ts = as_timestamp(states('input_datetime.fish_tank_last_water_change'), 0) %}
+            {{ as_local(as_datetime(ts)).strftime('%d %b %Y %H:%M') if ts > 86400 else 'Not logged yet' }}
 
       - name: fish_tank_days_since_filter_clean
         unique_id: fish_tank_days_since_filter_clean
         unit_of_measurement: days
         icon: mdi:air-filter
         state: >
-          {% set last = states('input_datetime.fish_tank_last_filter_clean') %}
-          {% set ts = as_timestamp(last, none) %}
-          {% if ts is none %}
+          {% set ts = as_timestamp(states('input_datetime.fish_tank_last_filter_clean'), 0) %}
+          {% if ts < 86400 %}
             0
           {% else %}
             {{ ((now().timestamp() - ts) / 86400) | round(1) }}
           {% endif %}
         attributes:
           logged: >
-            {{ as_timestamp(states('input_datetime.fish_tank_last_filter_clean'), none) is not none }}
+            {{ as_timestamp(states('input_datetime.fish_tank_last_filter_clean'), 0) > 86400 }}
           last_date: >
-            {% set last = states('input_datetime.fish_tank_last_filter_clean') %}
-            {{ last if as_timestamp(last, none) is not none else 'Not logged yet' }}
+            {% set ts = as_timestamp(states('input_datetime.fish_tank_last_filter_clean'), 0) %}
+            {{ as_local(as_datetime(ts)).strftime('%d %b %Y %H:%M') if ts > 86400 else 'Not logged yet' }}
 
       - name: fish_tank_days_since_fert_dose
         unique_id: fish_tank_days_since_fert_dose
         unit_of_measurement: days
         icon: mdi:leaf
         state: >
-          {% set last = states('input_datetime.fish_tank_last_fert_dose') %}
-          {% set ts = as_timestamp(last, none) %}
-          {% if ts is none %}
+          {% set ts = as_timestamp(states('input_datetime.fish_tank_last_fert_dose'), 0) %}
+          {% if ts < 86400 %}
             0
           {% else %}
             {{ ((now().timestamp() - ts) / 86400) | round(1) }}
           {% endif %}
         attributes:
           logged: >
-            {{ as_timestamp(states('input_datetime.fish_tank_last_fert_dose'), none) is not none }}
+            {{ as_timestamp(states('input_datetime.fish_tank_last_fert_dose'), 0) > 86400 }}
           last_date: >
-            {% set last = states('input_datetime.fish_tank_last_fert_dose') %}
-            {{ last if as_timestamp(last, none) is not none else 'Not logged yet' }}
+            {% set ts = as_timestamp(states('input_datetime.fish_tank_last_fert_dose'), 0) %}
+            {{ as_local(as_datetime(ts)).strftime('%d %b %Y %H:%M') if ts > 86400 else 'Not logged yet' }}
 
       - name: fish_tank_water_change_due_in
         unique_id: fish_tank_water_change_due_in
