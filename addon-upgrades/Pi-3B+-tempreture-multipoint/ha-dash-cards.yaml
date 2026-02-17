@@ -1,0 +1,374 @@
+###############################################################################
+# 🌡 MULTI-POINT TEMPERATURE — Dashboard Cards
+# ─────────────────────────────────────────────────────────────────────────────
+# Cards to add to your fish tank dashboard
+#
+# OVERVIEW VIEW:  Real-time temperature display with gauges
+# SETTINGS VIEW:  Calibration controls and diagnostics
+###############################################################################
+
+# ══════════════════════════════════════════════════════════════════════════
+# OVERVIEW VIEW CARDS
+# ══════════════════════════════════════════════════════════════════════════
+# Paste these into the Overview view's cards: section
+
+# ── MAIN TANK TEMPERATURE GAUGE ───────────────────────────────────────────────
+- type: custom:apexcharts-card
+  header:
+    show: true
+    title: "🌡 Main Tank Temperature"
+    show_states: true
+    colorize_states: true
+  apex_config:
+    chart:
+      type: radialBar
+      height: 180
+      background: transparent
+    plotOptions:
+      radialBar:
+        startAngle: -135
+        endAngle: 135
+        hollow:
+          size: 55%
+        dataLabels:
+          name:
+            show: false
+          value:
+            fontSize: 22px
+            fontWeight: 700
+            color: "#ffffff"
+            formatter: "function(val) { return (val/100*30+60).toFixed(1)+'°F'; }"
+        track:
+          background: "#001a33"
+    fill:
+      type: gradient
+      gradient:
+        shade: dark
+        type: horizontal
+        gradientToColors: ["#ff7043"]
+        stops: [0, 100]
+    colors: ["#29b6f6"]
+  series:
+    - entity: sensor.fish_tank_temperature
+      transform: "return ((x - 60) / 30) * 100;"
+      name: Tank Temp
+  card_mod:
+    style: |
+      ha-card {
+        grid-column: span 1;
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── TEMPERATURE ZONES COMPARISON ──────────────────────────────────────────────
+- type: entities
+  title: "🌡 Temperature Zones"
+  entities:
+    - entity: sensor.fish_tank_temperature
+      name: "Main Tank"
+      icon: mdi:fishbowl
+    - entity: sensor.fish_tank_sump_temperature
+      name: "Sump"
+      icon: mdi:water-pump
+    - entity: sensor.fish_tank_ato_temperature
+      name: "ATO Reservoir"
+      icon: mdi:water
+    - type: divider
+    - entity: sensor.fish_tank_temperature_average
+      name: "System Average"
+      icon: mdi:thermometer-lines
+    - entity: sensor.fish_tank_temperature_range
+      name: "Temperature Range"
+      icon: mdi:thermometer-chevron-up
+    - type: divider
+    - entity: sensor.fish_tank_tank_sump_gradient
+      name: "Tank-Sump Gradient"
+      icon: mdi:arrow-down-bold
+    - entity: sensor.fish_tank_ato_tank_gradient
+      name: "ATO-Tank Gradient"
+      icon: mdi:water-alert
+    - type: divider
+    - entity: binary_sensor.fish_tank_temperature_stratification
+      name: "Stratification Alert"
+    - entity: binary_sensor.fish_tank_ato_water_cold_warning
+      name: "ATO Cold Warning"
+  card_mod:
+    style: |
+      ha-card {
+        grid-column: span 2;
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── TEMPERATURE HISTORY (24H) ─────────────────────────────────────────────────
+- type: custom:mini-graph-card
+  name: "🌡 Temperature Zones — 24h"
+  icon: mdi:chart-line
+  entities:
+    - entity: sensor.fish_tank_temperature
+      name: Tank
+      color: "#ff7043"
+    - entity: sensor.fish_tank_sump_temperature
+      name: Sump
+      color: "#29b6f6"
+    - entity: sensor.fish_tank_ato_temperature
+      name: ATO
+      color: "#66bb6a"
+  hours_to_show: 24
+  points_per_hour: 4
+  line_width: 2
+  smoothing: true
+  show:
+    extrema: true
+    average: true
+    legend: true
+  lower_bound: 70
+  upper_bound: 82
+  card_mod:
+    style: |
+      ha-card {
+        grid-column: 1 / 3;
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── GRADIENT VISUALIZATION ────────────────────────────────────────────────────
+- type: custom:bar-card
+  entities:
+    - entity: sensor.fish_tank_tank_sump_gradient
+      name: "Tank-Sump Gradient"
+      icon: mdi:arrow-down-bold
+      severity:
+        - color: "#4caf50"
+          from: -1.0
+          to: 1.0
+        - color: "#ff9800"
+          from: 1.0
+          to: 3.0
+        - color: "#f44336"
+          from: 3.0
+          to: 10.0
+        - color: "#ff9800"
+          from: -3.0
+          to: -1.0
+        - color: "#f44336"
+          from: -10.0
+          to: -3.0
+      min: -5
+      max: 5
+      unit_of_measurement: "°F"
+    - entity: sensor.fish_tank_ato_tank_gradient
+      name: "ATO-Tank Gradient"
+      icon: mdi:water-alert
+      severity:
+        - color: "#4caf50"
+          from: -3.0
+          to: 3.0
+        - color: "#ff9800"
+          from: -5.0
+          to: -3.0
+        - color: "#f44336"
+          from: -10.0
+          to: -5.0
+        - color: "#ff9800"
+          from: 3.0
+          to: 5.0
+        - color: "#f44336"
+          from: 5.0
+          to: 10.0
+      min: -10
+      max: 10
+      unit_of_measurement: "°F"
+  card_mod:
+    style: |
+      ha-card {
+        grid-column: 3 / 5;
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ══════════════════════════════════════════════════════════════════════════
+# SETTINGS VIEW CARDS
+# ══════════════════════════════════════════════════════════════════════════
+# Paste these into the Settings view's cards: section
+
+# ── TEMPERATURE CALIBRATION ───────────────────────────────────────────────────
+- type: entities
+  title: "🔧 Temperature Sensor Calibration"
+  entities:
+    - type: section
+      label: "Calibration Offsets"
+    - entity: input_number.fish_tank_temp_calibration
+      name: "Tank Temperature Offset"
+      icon: mdi:fishbowl
+    - entity: input_number.fish_tank_sump_temp_calibration
+      name: "Sump Temperature Offset"
+      icon: mdi:water-pump
+    - entity: input_number.fish_tank_ato_temp_calibration
+      name: "ATO Reservoir Offset"
+      icon: mdi:water
+    - type: section
+      label: "Current Readings"
+    - entity: sensor.fish_tank_temperature
+      name: "Tank (Calibrated)"
+      icon: mdi:thermometer-check
+    - entity: sensor.fish_tank_sump_temperature
+      name: "Sump (Calibrated)"
+      icon: mdi:thermometer-check
+    - entity: sensor.fish_tank_ato_temperature
+      name: "ATO (Calibrated)"
+      icon: mdi:thermometer-check
+    - type: section
+      label: "Actions"
+    - type: button
+      name: "Reset All Calibrations"
+      action_name: "Reset"
+      tap_action:
+        action: call-service
+        service: script.fish_tank_reset_temp_calibrations
+        confirmation:
+          text: "Reset all temperature calibrations to 0?"
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+        margin-bottom: 8px;
+      }
+
+# ── TEMPERATURE MONITORING SETTINGS ───────────────────────────────────────────
+- type: entities
+  title: "⚙️ Temperature Monitoring Settings"
+  entities:
+    - entity: input_number.fish_tank_temp_gradient_threshold
+      name: "Max Safe Temperature Gradient"
+      icon: mdi:thermometer-alert
+    - type: divider
+    - entity: binary_sensor.fish_tank_temperature_stratification
+      name: "Stratification Detected"
+    - entity: binary_sensor.fish_tank_ato_water_cold_warning
+      name: "ATO Water Cold Warning"
+    - entity: binary_sensor.fish_tank_temperature_sensor_error
+      name: "Sensor Error Detected"
+    - type: divider
+    - entity: automation.fish_tank_temperature_stratification_alert
+      name: "Stratification Alert"
+    - entity: automation.fish_tank_ato_water_cold_alert
+      name: "ATO Cold Alert"
+    - entity: automation.fish_tank_temperature_sensor_failure_alert
+      name: "Sensor Failure Alert"
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+        margin-bottom: 8px;
+      }
+
+# ── RASPBERRY PI DIAGNOSTICS ──────────────────────────────────────────────────
+- type: entities
+  title: "🖥 Raspberry Pi Status"
+  entities:
+    - entity: binary_sensor.temperature_monitor_status
+      name: "Device Online"
+    - entity: sensor.temperature_monitor_ip
+      name: "IP Address"
+    - entity: sensor.temperature_monitor_wifi_signal
+      name: "WiFi Signal"
+    - entity: sensor.pi_cpu_temperature
+      name: "Pi CPU Temperature"
+    - entity: sensor.temperature_monitor_esphome_version
+      name: "ESPHome Version"
+    - type: divider
+    - type: button
+      name: "Restart Temperature Monitor"
+      action_name: "Restart"
+      tap_action:
+        action: call-service
+        service: switch.turn_on
+        target:
+          entity_id: switch.temperature_monitor_restart
+        confirmation:
+          text: "Restart the Raspberry Pi temperature monitor?"
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+###############################################################################
+# CALIBRATION INSTRUCTIONS (displayed in Settings view)
+###############################################################################
+
+- type: markdown
+  content: |
+    ## 📐 How to Calibrate Temperature Sensors
+    
+    **You'll need:** A trusted reference thermometer (digital or infrared)
+    
+    **Steps:**
+    1. Place reference thermometer in main tank, wait 5 minutes
+    2. Compare readings:
+       - Reference shows: **76.5°F**
+       - Tank sensor shows: **77.2°F**
+       - Difference: **+0.7°F** (sensor reads high)
+    3. Set calibration offset to **-0.7** (negative because sensor is high)
+    4. Tank sensor now displays: 77.2 - 0.7 = **76.5°F** ✓
+    
+    Repeat for Sump and ATO sensors.
+    
+    **When to calibrate:**
+    - After first installation
+    - If sensors show unrealistic differences
+    - Every 6 months (sensor drift)
+    - After replacing a sensor
+    
+    **Note:** Calibration values are saved and persist across reboots.
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.25), rgba(0,50,80,0.2));
+        border: 2px solid rgba(0,180,220,0.25);
+        border-radius: 16px;
+        padding: 8px;
+        margin-bottom: 8px;
+      }
+      ha-markdown {
+        color: #e0f7fa !important;
+      }
