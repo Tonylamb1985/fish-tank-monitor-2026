@@ -1,0 +1,290 @@
+###############################################################################
+# ESPHome Config: Multi-Point Temperature Monitor (Raspberry Pi 3B+)
+# ─────────────────────────────────────────────────────────────────────────────
+# Monitors 3 DS18B20 waterproof temperature sensors:
+#   - Main tank water
+#   - Sump water
+#   - ATO reservoir water
+#
+# HARDWARE:
+#   - Raspberry Pi 3B+ (running ESPHome)
+#   - 3x DS18B20 waterproof temperature probes
+#   - 1x 4.7kΩ resistor (pull-up for 1-wire bus)
+#
+# WIRING:
+#   DS18B20 Red    → Pi 3.3V (Pin 1)
+#   DS18B20 Black  → Pi GND (Pin 6)
+#   DS18B20 Yellow → Pi GPIO4 (Pin 7) + 4.7kΩ to 3.3V
+#
+# INSTALL:
+#   1. Install ESPHome on Raspberry Pi: https://esphome.io/guides/getting_started_rpi
+#   2. Save this file as: /config/esphome/fish_tank_temps.yaml
+#   3. Run: esphome run fish_tank_temps.yaml
+#   4. Sensors will auto-discover in Home Assistant via MQTT
+#
+# CALIBRATION:
+#   Each sensor has calibration offset (configured in HA dashboard)
+#   Use input_number helpers to adjust each sensor independently
+###############################################################################
+
+esphome:
+  name: fish-tank-temps
+  friendly_name: "Fish Tank Temperature Monitor"
+  platform: rpi
+  board: rpi3
+
+# ── WiFi Configuration ────────────────────────────────────────────────────────
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  
+  # Static IP (optional, recommended for reliability)
+  manual_ip:
+    static_ip: 192.168.1.150
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+  
+  # Fallback hotspot if WiFi fails
+  ap:
+    ssid: "Fish-Tank-Temps"
+    password: "fishtank123"
+
+# ── API for Home Assistant ────────────────────────────────────────────────────
+api:
+  encryption:
+    key: !secret api_encryption_key
+  
+  # Services for remote calibration
+  services:
+    - service: calibrate_tank_temp
+      variables:
+        offset: float
+      then:
+        - lambda: |-
+            id(tank_temp_offset) = offset;
+
+    - service: calibrate_sump_temp
+      variables:
+        offset: float
+      then:
+        - lambda: |-
+            id(sump_temp_offset) = offset;
+
+    - service: calibrate_ato_temp
+      variables:
+        offset: float
+      then:
+        - lambda: |-
+            id(ato_temp_offset) = offset;
+
+# ── OTA Updates ───────────────────────────────────────────────────────────────
+ota:
+  password: !secret ota_password
+
+# ── Logger ────────────────────────────────────────────────────────────────────
+logger:
+  level: INFO
+
+# ── MQTT Integration ──────────────────────────────────────────────────────────
+mqtt:
+  broker: 192.168.1.50  # ← CHANGE TO YOUR HOME ASSISTANT IP
+  port: 1883
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  discovery: true       # Auto-discovery in Home Assistant
+  discovery_prefix: homeassistant
+  topic_prefix: fish_tank_temps
+
+# ── 1-Wire Bus Configuration ──────────────────────────────────────────────────
+# GPIO4 (Pin 7) is the standard 1-wire bus on Raspberry Pi
+# All DS18B20 sensors share this single wire
+dallas:
+  - pin: GPIO4
+    update_interval: 10s  # Read sensors every 10 seconds
+
+# ── Global Variables for Calibration Offsets ──────────────────────────────────
+globals:
+  - id: tank_temp_offset
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+
+  - id: sump_temp_offset
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+
+  - id: ato_temp_offset
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+
+# ── Temperature Sensors ───────────────────────────────────────────────────────
+sensor:
+
+  # ── MAIN TANK TEMPERATURE ─────────────────────────────────────────────────
+  - platform: dallas
+    # To find sensor address, run `esphome logs fish_tank_temps.yaml`
+    # and look for "Found device" messages with addresses like 0x1234567890abcdef
+    # Then replace the address below
+    address: 0x1C0000031EDD2A28  # ← REPLACE WITH YOUR SENSOR ADDRESS
+    name: "Fish Tank Temperature (Raw)"
+    id: tank_temp_raw
+    internal: true  # Hide raw sensor, only expose calibrated version
+    accuracy_decimals: 2
+    filters:
+      # Convert Celsius to Fahrenheit (remove if you want Celsius)
+      - lambda: return x * 9.0 / 5.0 + 32.0;
+      # Smoothing filter (reduces noise)
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+
+  # Calibrated tank temperature (applies offset from HA)
+  - platform: template
+    name: "Fish Tank Temperature"
+    id: fish_tank_temperature
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    icon: mdi:thermometer-water
+    lambda: |-
+      return id(tank_temp_raw).state + id(tank_temp_offset);
+    update_interval: 10s
+
+  # ── SUMP TEMPERATURE ──────────────────────────────────────────────────────
+  - platform: dallas
+    address: 0x2D0000031F4A3B28  # ← REPLACE WITH YOUR SENSOR ADDRESS
+    name: "Sump Temperature (Raw)"
+    id: sump_temp_raw
+    internal: true
+    accuracy_decimals: 2
+    filters:
+      - lambda: return x * 9.0 / 5.0 + 32.0;  # C to F
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+
+  - platform: template
+    name: "Sump Temperature"
+    id: sump_temperature
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    icon: mdi:thermometer
+    lambda: |-
+      return id(sump_temp_raw).state + id(sump_temp_offset);
+    update_interval: 10s
+
+  # ── ATO RESERVOIR TEMPERATURE ─────────────────────────────────────────────
+  - platform: dallas
+    address: 0x3E0000031D2F4C28  # ← REPLACE WITH YOUR SENSOR ADDRESS
+    name: "ATO Reservoir Temperature (Raw)"
+    id: ato_temp_raw
+    internal: true
+    accuracy_decimals: 2
+    filters:
+      - lambda: return x * 9.0 / 5.0 + 32.0;  # C to F
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+
+  - platform: template
+    name: "ATO Reservoir Temperature"
+    id: ato_reservoir_temperature
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    icon: mdi:water-thermometer
+    lambda: |-
+      return id(ato_temp_raw).state + id(ato_temp_offset);
+    update_interval: 10s
+
+  # ── TEMPERATURE DELTA (Tank vs Sump) ──────────────────────────────────────
+  # Useful for detecting circulation issues
+  - platform: template
+    name: "Tank-Sump Temperature Delta"
+    id: tank_sump_delta
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    icon: mdi:thermometer-chevron-up
+    lambda: |-
+      if (id(fish_tank_temperature).has_state() && id(sump_temperature).has_state()) {
+        return id(fish_tank_temperature).state - id(sump_temperature).state;
+      }
+      return NAN;
+    update_interval: 10s
+
+  # ── RASPBERRY PI CPU TEMPERATURE ──────────────────────────────────────────
+  # Monitors Pi health
+  - platform: rpi_cpu_temp
+    name: "Pi CPU Temperature"
+    id: pi_cpu_temp
+    update_interval: 60s
+
+  # ── WiFi Signal Strength ──────────────────────────────────────────────────
+  - platform: wifi_signal
+    name: "Temperature Monitor WiFi Signal"
+    update_interval: 60s
+
+# ── Binary Sensors ────────────────────────────────────────────────────────────
+binary_sensor:
+
+  # Pi Status (for monitoring)
+  - platform: status
+    name: "Temperature Monitor Status"
+
+  # Temperature Gradient Alert (Tank-Sump delta >3°F)
+  - platform: template
+    name: "Temperature Stratification Alert"
+    id: temp_stratification_alert
+    device_class: problem
+    lambda: |-
+      if (id(tank_sump_delta).has_state()) {
+        return abs(id(tank_sump_delta).state) > 3.0;
+      }
+      return false;
+
+# ── Text Sensors ──────────────────────────────────────────────────────────────
+text_sensor:
+
+  # Pi IP Address
+  - platform: wifi_info
+    ip_address:
+      name: "Temperature Monitor IP"
+
+  # ESPHome Version
+  - platform: version
+    name: "Temperature Monitor ESPHome Version"
+
+# ── Switches ──────────────────────────────────────────────────────────────────
+switch:
+
+  # Restart switch (for remote reboot)
+  - platform: restart
+    name: "Temperature Monitor Restart"
+
+###############################################################################
+# FINDING YOUR DS18B20 SENSOR ADDRESSES
+###############################################################################
+#
+# 1. Wire all three DS18B20 sensors to the Pi (see wiring diagram above)
+# 2. Upload this config with placeholder addresses
+# 3. Run: esphome logs fish_tank_temps.yaml
+# 4. Watch the log output - you'll see lines like:
+#      [dallas:074]: Found device at address 0x1C0000031EDD2A28
+#      [dallas:074]: Found device at address 0x2D0000031F4A3B28
+#      [dallas:074]: Found device at address 0x3E0000031D2F4C28
+# 5. Copy these addresses and replace the placeholder addresses above
+# 6. Label each sensor (tie a colored ribbon to each probe):
+#      - Red ribbon = Tank (first address)
+#      - Blue ribbon = Sump (second address)
+#      - Green ribbon = ATO (third address)
+# 7. Re-upload the config with correct addresses
+#
+###############################################################################
