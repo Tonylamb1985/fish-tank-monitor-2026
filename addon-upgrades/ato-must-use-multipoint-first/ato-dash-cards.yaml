@@ -1,0 +1,531 @@
+###############################################################################
+# 💧 ATO DASHBOARD CARDS
+# ─────────────────────────────────────────────────────────────────────────────
+# THREE SECTIONS:
+#
+#   SECTION 1 — OVERVIEW CARD (paste into existing Overview view)
+#   SECTION 2 — ATO FULL VIEW (paste as a new view in the dashboard)
+#   SECTION 3 — SETTINGS CALIBRATION CARD (paste into Settings view)
+#
+# AQUARIUM THEME: All cards use the same frosted glass ocean styling
+###############################################################################
+
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION 1 — OVERVIEW SUMMARY CARD                                      ║
+# ║  Paste into Overview view's cards: section                               ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+- type: custom:mushroom-template-card
+  primary: "💧 Auto Top-Off"
+  secondary: >
+    {% set status = states('sensor.ato_status') %}
+    {% set level = states('sensor.ato_reservoir_level_litres') | float(0) | round(1) %}
+    {% set pct = states('sensor.ato_reservoir_level_percent') | float(0) | round(0) %}
+    {{ status }} — {{ level }}L ({{ pct }}%)
+  icon: mdi:water-pump
+  icon_color: >
+    {% set status = states('sensor.ato_status') %}
+    {% if 'Safety' in status or 'Critical' in status %} red
+    {% elif 'Low' in status or 'Cold' in status %} orange
+    {% elif status == 'Pumping' %} blue
+    {% elif status == 'Disabled' or status == 'Paused' %} grey
+    {% else %} cyan
+    {% endif %}
+  badge_icon: >
+    {% if is_state('binary_sensor.ato_pump_overtime', 'on') %} mdi:alert
+    {% elif is_state('binary_sensor.ato_reservoir_critical', 'on') %} mdi:bucket-remove
+    {% elif is_state('binary_sensor.ato_reservoir_low', 'on') %} mdi:bucket-minus
+    {% elif is_state('binary_sensor.ato_pump_running_status', 'on') %} mdi:pump
+    {% else %} ''
+    {% endif %}
+  badge_color: >
+    {% if is_state('binary_sensor.ato_pump_overtime', 'on') %} red
+    {% elif is_state('binary_sensor.ato_reservoir_critical', 'on') %} red
+    {% elif is_state('binary_sensor.ato_reservoir_low', 'on') %} orange
+    {% else %} cyan
+    {% endif %}
+  tap_action:
+    action: navigate
+    navigation_path: /lovelace/ato
+  hold_action:
+    action: call-service
+    service: script.ato_reservoir_refilled
+    confirmation:
+      text: "Mark reservoir as refilled to {{ states('input_number.ato_reservoir_capacity') | round(1) }}L?"
+  card_mod:
+    style: |
+      ha-card {
+        grid-column: span 2;
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION 2 — FULL ATO VIEW                                               ║
+# ║  Add as a NEW VIEW in the dashboard YAML                                 ║
+# ║                                                                          ║
+# ║  In dashboard raw config add this under views:                           ║
+# ║    - title: ATO                                                          ║
+# ║      path: ato                                                           ║
+# ║      icon: mdi:water-pump                                                ║
+# ║      type: masonry                                                       ║
+# ║      cards:   ← paste all cards below here                              ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+# ── RESERVOIR LEVEL GAUGE ─────────────────────────────────────────────────────
+- type: custom:apexcharts-card
+  header:
+    show: true
+    title: "🪣 Reservoir Level"
+    show_states: true
+    colorize_states: true
+  apex_config:
+    chart:
+      type: radialBar
+      height: 220
+      background: transparent
+    plotOptions:
+      radialBar:
+        startAngle: -135
+        endAngle: 135
+        hollow:
+          size: 55%
+        dataLabels:
+          name:
+            show: false
+          value:
+            fontSize: 26px
+            fontWeight: 700
+            color: "#ffffff"
+            formatter: "function(val) { return val.toFixed(1)+'%'; }"
+        track:
+          background: "#001a33"
+    fill:
+      type: gradient
+      gradient:
+        shade: dark
+        type: horizontal
+        gradientToColors: ["#ff7043"]
+        stops: [0, 100]
+    colors: ["#00e5ff"]
+    annotations:
+      yaxis:
+        - y: 20
+          borderColor: "#ff7043"
+          label:
+            text: "Min"
+  series:
+    - entity: sensor.ato_reservoir_level_percent
+      name: Level
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,150,200,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── RESERVOIR STATS ───────────────────────────────────────────────────────────
+- type: entities
+  title: "💧 Reservoir Status"
+  entities:
+    - entity: sensor.ato_reservoir_level_litres
+      name: Current Level
+      icon: mdi:water
+    - entity: sensor.ato_reservoir_level_percent
+      name: Level Percentage
+      icon: mdi:percent
+    - entity: sensor.ato_reservoir_usable_litres
+      name: Usable Remaining
+      icon: mdi:water-check
+    - entity: sensor.ato_reservoir_days_remaining
+      name: Est. Days Remaining
+      icon: mdi:calendar-clock
+    - type: divider
+    - entity: sensor.ato_status
+      name: System Status
+      icon: mdi:information
+    - entity: binary_sensor.ato_safe_to_run
+      name: Safe to Run
+      icon: mdi:shield-check
+    - entity: binary_sensor.ato_float_valve
+      name: Float Valve
+      icon: mdi:valve
+    - entity: binary_sensor.ato_pump_running_status
+      name: Pump Running
+      icon: mdi:pump
+    - type: divider
+    - entity: sensor.ato_current_cycle_runtime
+      name: Pump Runtime (This Cycle)
+      icon: mdi:timer
+    - entity: sensor.ato_daily_topoff_ml
+      name: Today's Top-Off Total
+      icon: mdi:chart-bar
+    - entity: sensor.ato_last_cycle_ago
+      name: Last Cycle (min ago)
+      icon: mdi:clock-outline
+    - entity: input_datetime.ato_last_refill
+      name: Last Refill
+      icon: mdi:calendar-check
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,150,200,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── SYSTEM CONTROLS ───────────────────────────────────────────────────────────
+- type: entities
+  title: "⚙️ ATO Controls"
+  entities:
+    - entity: input_boolean.ato_enabled
+      name: ATO Enabled
+      icon: mdi:water-pump
+    - entity: input_boolean.ato_paused
+      name: ATO Paused
+      icon: mdi:pause-circle
+    - type: divider
+    - type: button
+      name: "🪣 Mark Reservoir Refilled"
+      action_name: Refilled
+      tap_action:
+        action: call-service
+        service: script.ato_reservoir_refilled
+        confirmation:
+          text: >
+            Mark reservoir as full?
+            This will reset level to {{ states('input_number.ato_reservoir_capacity') | round(1) }}L
+    - type: button
+      name: "🔧 Test Pump (5 sec)"
+      action_name: Test
+      tap_action:
+        action: call-service
+        service: script.ato_manual_pump_test
+        confirmation:
+          text: "Run pump for 5 seconds to test wiring?"
+    - type: button
+      name: "▶️ Resume After Fault"
+      action_name: Clear Fault
+      tap_action:
+        action: call-service
+        service: script.ato_clear_overtime_fault
+        confirmation:
+          text: "Clear overtime fault and resume ATO? Check float valve first."
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,150,200,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── ALERTS STATUS ─────────────────────────────────────────────────────────────
+- type: entities
+  title: "🚨 Safety Status"
+  entities:
+    - entity: binary_sensor.ato_reservoir_low
+      name: Reservoir Low
+      icon: mdi:bucket-minus
+    - entity: binary_sensor.ato_reservoir_critical
+      name: Reservoir Critical
+      icon: mdi:bucket-remove
+    - entity: binary_sensor.ato_pump_overtime
+      name: Pump Overtime Warning
+      icon: mdi:timer-alert
+    - entity: binary_sensor.fish_tank_ato_water_cold_warning
+      name: Cold Water Warning
+      icon: mdi:snowflake-alert
+    - type: divider
+    - entity: binary_sensor.ato_safe_to_run
+      name: All Safety Checks
+      secondary_info: attribute
+      attribute: reason
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,150,200,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── TEMPERATURE CONTEXT (from multipoint system) ──────────────────────────────
+- type: entities
+  title: "🌡 ATO Temperature Safety"
+  entities:
+    - entity: sensor.fish_tank_ato_temperature
+      name: ATO Reservoir Temp
+      icon: mdi:water-thermometer
+    - entity: sensor.fish_tank_temperature
+      name: Main Tank Temp
+      icon: mdi:thermometer-water
+    - entity: sensor.fish_tank_ato_tank_gradient
+      name: ATO-Tank Difference
+      icon: mdi:thermometer-lines
+    - entity: binary_sensor.fish_tank_ato_water_cold_warning
+      name: Cold Water Block Active
+      icon: mdi:snowflake-alert
+    - type: section
+      label: "Safe top-off when difference < 3°C"
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,150,200,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── RESERVOIR HISTORY GRAPH ───────────────────────────────────────────────────
+- type: custom:mini-graph-card
+  name: "🪣 Reservoir Level — 7 Days"
+  icon: mdi:water
+  entities:
+    - entity: sensor.ato_reservoir_level_litres
+      name: Level (L)
+      color: "#00e5ff"
+    - entity: sensor.ato_daily_topoff_ml
+      name: Daily Top-Off (ml)
+      color: "#26c6da"
+      y_axis: secondary
+  hours_to_show: 168
+  points_per_hour: 1
+  line_width: 2
+  smoothing: true
+  show:
+    extrema: true
+    average: true
+    legend: true
+  lower_bound: 0
+  upper_bound_secondary: 2000
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,150,200,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── PUMP ACTIVITY HISTORY ─────────────────────────────────────────────────────
+- type: custom:mini-graph-card
+  name: "⏱ Daily Top-Off Volume — 14 Days"
+  icon: mdi:chart-bar
+  entities:
+    - entity: sensor.ato_daily_topoff_ml
+      name: Daily ml
+      color: "#29b6f6"
+  hours_to_show: 336
+  group_by: date
+  aggregate_func: last
+  line_width: 2
+  show:
+    extrema: true
+    average: true
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,150,200,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION 3 — SETTINGS CALIBRATION CARD                                  ║
+# ║  Paste into Settings view's cards: section                               ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+# ── ATO CALIBRATION & AUTO-LEARN ─────────────────────────────────────────────
+- type: entities
+  title: "🔧 ATO Calibration & Auto-Learn"
+  entities:
+    - type: section
+      label: "Active Calibration"
+    - entity: sensor.ato_ml_per_activation
+      name: Active ml Per Activation
+      secondary_info: attribute
+      attribute: source
+      icon: mdi:cup-water
+    - entity: sensor.ato_live_avg_ml_this_period
+      name: Live Average (This Period)
+      secondary_info: attribute
+      attribute: cycles
+      icon: mdi:chart-line-variant
+    - type: section
+      label: "Manual Override (0 = use auto-learn)"
+    - entity: input_number.ato_ml_per_activation_manual
+      name: Manual ml Per Activation
+      icon: mdi:cup-water
+    - type: section
+      label: "Auto-Learn Settings"
+    - entity: input_number.ato_ml_per_activation_learned
+      name: Learned Value (auto-calculated)
+      icon: mdi:school
+    - entity: input_number.ato_autolearn_window
+      name: Rolling Window (refill periods)
+      icon: mdi:chart-bell-curve
+    - type: section
+      label: "This Period Stats"
+    - entity: input_number.ato_cycles_this_period
+      name: Cycles Since Last Refill
+      icon: mdi:counter
+    - entity: input_number.ato_ml_used_this_period
+      name: ml Used This Period
+      icon: mdi:water-minus
+    - type: section
+      label: "Reservoir Configuration"
+    - entity: input_number.ato_reservoir_capacity
+      name: Reservoir Total Capacity
+      icon: mdi:bucket
+    - entity: input_number.ato_reservoir_minimum
+      name: Minimum Level (Stop Pumping)
+      icon: mdi:bucket-minus
+    - entity: input_number.ato_reservoir_current_level
+      name: Current Level (Manual Override)
+      icon: mdi:water
+    - type: section
+      label: "Safety Settings"
+    - entity: input_number.ato_max_pump_runtime
+      name: Max Pump Runtime Per Cycle
+      icon: mdi:timer-alert
+    - entity: input_number.ato_min_cycle_interval
+      name: Min Time Between Cycles
+      icon: mdi:timer-refresh
+    - type: section
+      label: "Actions"
+    - type: button
+      name: "🔧 Test Pump (5 sec)"
+      action_name: Test
+      tap_action:
+        action: call-service
+        service: script.ato_manual_pump_test
+        confirmation:
+          text: "Run pump 5 seconds? This will NOT count towards auto-learn data."
+    - type: button
+      name: "🪣 Mark Reservoir Refilled"
+      action_name: Refilled
+      tap_action:
+        action: call-service
+        service: script.ato_reservoir_refilled
+        confirmation:
+          text: "Mark reservoir as full? This triggers auto-learn calculation."
+    - type: button
+      name: "🧠 Reset Auto-Learn History"
+      action_name: Reset
+      tap_action:
+        action: call-service
+        service: script.ato_reset_autolearn
+        confirmation:
+          text: "Clear all auto-learn history? Do this only if you replace the pump."
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,150,200,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+        margin-bottom: 8px;
+      }
+
+# ── CALIBRATION INSTRUCTIONS ─────────────────────────────────────────────────
+- type: markdown
+  content: |
+    ## 📐 How to Calibrate Pump Flow Rate (LPH)
+
+    Accurate LPH tells the system exactly how much water is left in the reservoir.
+
+    **Method 1 — Timed test (recommended):**
+    1. Fill a measuring jug with 500ml of water
+    2. Disconnect pump outlet from tank tubing
+    3. Press **Test Pump (5 sec)** button above
+    4. Measure the ml collected
+    5. Calculate: `LPH = (ml_collected / 5) × 3600 / 1000`
+       - Example: 167ml in 5s = (167/5) × 3600 / 1000 = **120.2 L/h**
+    6. Enter result in **Pump Flow Rate** slider
+
+    **Method 2 — From pump spec sheet:**
+    - Check pump packaging for rated flow rate
+    - Note: actual flow may be 10–20% lower due to head pressure (tube height)
+    - Use Method 1 for best accuracy, or use auto-learn
+
+    ---
+
+    ## 🧠 How Auto-Learn Works
+
+    Auto-learn is the recommended method — no measuring jugs needed.
+
+    **How it works:**
+    1. Use the system normally for a full reservoir period
+    2. When you refill the reservoir, press **Mark Reservoir Refilled**
+    3. HA calculates: `total_ml_used ÷ total_cycles = avg ml per activation`
+    4. This average is added to a rolling history (default: last 3 refills)
+    5. The learned value = average of the rolling window
+    6. Accuracy improves with every refill
+
+    **Confidence levels shown on dashboard:**
+    - **None** — no data yet, system needs calibration
+    - **Low** — fewer than 5 cycles this period
+    - **Medium** — 5+ cycles this period (good estimate)
+    - **High** — learned from multiple refill periods (best accuracy)
+    - **Manual** — you have set a manual override
+
+    **When to reset auto-learn:**
+    - After replacing the pump (flow rate will change)
+    - After significantly changing tube length or height
+    - If reservoir level becomes noticeably inaccurate
+
+    **Re-calibrate if:**
+    - Reservoir level calculation drifts noticeably over time
+    - Pump is replaced or serviced
+
+    ---
+
+    ## 🪣 Reservoir Level Tracking
+
+    The system tracks reservoir level by:
+    - **Starting at capacity** when you press Refill
+    - **Subtracting water used** each ATO cycle (runtime × LPH)
+    - **Alerting at minimum** (default 5L) and stopping the pump
+
+    For best accuracy: calibrate LPH carefully and always press
+    **Mark Reservoir Refilled** after topping up.
+
+    ---
+
+    ## 🔌 Future: Sump Height Sensor
+
+    GPIO27 (Pin 13) is reserved on the Pi for a second float switch or
+    ultrasonic sensor to monitor sump water height directly.
+    When added, uncomment the `sump_high_water` sensor in the ESPHome config.
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.25), rgba(0,50,80,0.2));
+        border: 2px solid rgba(0,180,220,0.25);
+        border-radius: 16px;
+        padding: 8px;
+      }
+      ha-markdown {
+        color: #e0f7fa !important;
+      }
