@@ -1,0 +1,444 @@
+###############################################################################
+# 📦 PACKAGE: fish_tank_temperature_multipoint.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-point temperature monitoring with calibration controls
+# Monitors: Main tank, Sump, ATO reservoir
+# Provides: Calibration offsets, gradient alerts, history tracking
+#
+# REQUIRES:
+#   - Raspberry Pi 3B+ with ESPHome (fish_tank_temps.yaml)
+#   - 3x DS18B20 waterproof temperature sensors
+#   - MQTT broker configured
+#
+# INSTALL:
+#   Drop in: config/packages/fish_tank_temperature_multipoint.yaml
+#   Restart Home Assistant
+###############################################################################
+
+# ── CALIBRATION HELPERS ───────────────────────────────────────────────────────
+# User-adjustable offsets for each sensor (shown in Settings view)
+input_number:
+
+  fish_tank_temp_calibration:
+    name: "🌡 Tank Temp Calibration Offset"
+    min: -5.0
+    max: 5.0
+    step: 0.1
+    initial: 0.0
+    unit_of_measurement: "°F"
+    icon: mdi:thermometer-plus
+    mode: slider
+
+  fish_tank_sump_temp_calibration:
+    name: "🌡 Sump Temp Calibration Offset"
+    min: -5.0
+    max: 5.0
+    step: 0.1
+    initial: 0.0
+    unit_of_measurement: "°F"
+    icon: mdi:thermometer-plus
+    mode: slider
+
+  fish_tank_ato_temp_calibration:
+    name: "🌡 ATO Temp Calibration Offset"
+    min: -5.0
+    max: 5.0
+    step: 0.1
+    initial: 0.0
+    unit_of_measurement: "°F"
+    icon: mdi:thermometer-plus
+    mode: slider
+
+  # Temperature gradient alert threshold
+  fish_tank_temp_gradient_threshold:
+    name: "🌡 Max Safe Temperature Gradient"
+    min: 1.0
+    max: 10.0
+    step: 0.5
+    initial: 3.0
+    unit_of_measurement: "°F"
+    icon: mdi:thermometer-alert
+    mode: slider
+
+# ── TEMPLATE SENSORS ──────────────────────────────────────────────────────────
+template:
+
+  - sensor:
+
+      # ── CALIBRATED TEMPERATURES ─────────────────────────────────────────
+      # These apply the calibration offsets from input_number helpers
+      # These are the sensors used throughout the system
+      
+      - name: fish_tank_temperature
+        unique_id: fish_tank_temperature_calibrated
+        unit_of_measurement: "°F"
+        device_class: temperature
+        state_class: measurement
+        icon: mdi:thermometer-water
+        state: >
+          {% set raw = states('sensor.fish_tank_temperature') | float(0) %}
+          {% set offset = states('input_number.fish_tank_temp_calibration') | float(0) %}
+          {{ (raw + offset) | round(1) }}
+        availability: >
+          {{ states('sensor.fish_tank_temperature') not in ['unavailable', 'unknown'] }}
+
+      - name: fish_tank_sump_temperature
+        unique_id: fish_tank_sump_temperature_calibrated
+        unit_of_measurement: "°F"
+        device_class: temperature
+        state_class: measurement
+        icon: mdi:thermometer
+        state: >
+          {% set raw = states('sensor.sump_temperature') | float(0) %}
+          {% set offset = states('input_number.fish_tank_sump_temp_calibration') | float(0) %}
+          {{ (raw + offset) | round(1) }}
+        availability: >
+          {{ states('sensor.sump_temperature') not in ['unavailable', 'unknown'] }}
+
+      - name: fish_tank_ato_temperature
+        unique_id: fish_tank_ato_temperature_calibrated
+        unit_of_measurement: "°F"
+        device_class: temperature
+        state_class: measurement
+        icon: mdi:water-thermometer
+        state: >
+          {% set raw = states('sensor.ato_reservoir_temperature') | float(0) %}
+          {% set offset = states('input_number.fish_tank_ato_temp_calibration') | float(0) %}
+          {{ (raw + offset) | round(1) }}
+        availability: >
+          {{ states('sensor.ato_reservoir_temperature') not in ['unavailable', 'unknown'] }}
+
+      # ── TEMPERATURE STATISTICS ──────────────────────────────────────────
+      
+      # Average across all three zones
+      - name: fish_tank_temperature_average
+        unique_id: fish_tank_temperature_average
+        unit_of_measurement: "°F"
+        device_class: temperature
+        state_class: measurement
+        icon: mdi:thermometer-lines
+        state: >
+          {% set tank = states('sensor.fish_tank_temperature') | float(0) %}
+          {% set sump = states('sensor.fish_tank_sump_temperature') | float(0) %}
+          {% set ato = states('sensor.fish_tank_ato_temperature') | float(0) %}
+          {{ ((tank + sump + ato) / 3) | round(1) }}
+
+      # Maximum temperature across zones
+      - name: fish_tank_temperature_max
+        unique_id: fish_tank_temperature_max
+        unit_of_measurement: "°F"
+        device_class: temperature
+        state_class: measurement
+        icon: mdi:thermometer-chevron-up
+        state: >
+          {% set tank = states('sensor.fish_tank_temperature') | float(0) %}
+          {% set sump = states('sensor.fish_tank_sump_temperature') | float(0) %}
+          {% set ato = states('sensor.fish_tank_ato_temperature') | float(0) %}
+          {{ [tank, sump, ato] | max | round(1) }}
+
+      # Minimum temperature across zones
+      - name: fish_tank_temperature_min
+        unique_id: fish_tank_temperature_min
+        unit_of_measurement: "°F"
+        device_class: temperature
+        state_class: measurement
+        icon: mdi:thermometer-chevron-down
+        state: >
+          {% set tank = states('sensor.fish_tank_temperature') | float(0) %}
+          {% set sump = states('sensor.fish_tank_sump_temperature') | float(0) %}
+          {% set ato = states('sensor.fish_tank_ato_temperature') | float(0) %}
+          {{ [tank, sump, ato] | min | round(1) }}
+
+      # Temperature range (max - min)
+      - name: fish_tank_temperature_range
+        unique_id: fish_tank_temperature_range
+        unit_of_measurement: "°F"
+        device_class: temperature
+        icon: mdi:thermometer-lines
+        state: >
+          {% set max = states('sensor.fish_tank_temperature_max') | float(0) %}
+          {% set min = states('sensor.fish_tank_temperature_min') | float(0) %}
+          {{ (max - min) | round(1) }}
+
+      # ── TEMPERATURE GRADIENTS ───────────────────────────────────────────
+      
+      # Tank to Sump gradient
+      - name: fish_tank_tank_sump_gradient
+        unique_id: fish_tank_tank_sump_gradient
+        unit_of_measurement: "°F"
+        device_class: temperature
+        icon: mdi:arrow-down-bold
+        state: >
+          {% set tank = states('sensor.fish_tank_temperature') | float(0) %}
+          {% set sump = states('sensor.fish_tank_sump_temperature') | float(0) %}
+          {{ (tank - sump) | round(1) }}
+        attributes:
+          direction: >
+            {% set grad = states('sensor.fish_tank_tank_sump_gradient') | float(0) %}
+            {% if grad > 0.5 %}Tank Warmer
+            {% elif grad < -0.5 %}Sump Warmer
+            {% else %}Equal{% endif %}
+
+      # ATO to Tank gradient (cold water shock risk)
+      - name: fish_tank_ato_tank_gradient
+        unique_id: fish_tank_ato_tank_gradient
+        unit_of_measurement: "°F"
+        device_class: temperature
+        icon: mdi:water-alert
+        state: >
+          {% set ato = states('sensor.fish_tank_ato_temperature') | float(0) %}
+          {% set tank = states('sensor.fish_tank_temperature') | float(0) %}
+          {{ (ato - tank) | round(1) }}
+        attributes:
+          shock_risk: >
+            {% set grad = states('sensor.fish_tank_ato_tank_gradient') | float(0) | abs %}
+            {% if grad > 5 %}High - Warm ATO water before adding
+            {% elif grad > 3 %}Medium - Monitor carefully
+            {% else %}Low - Safe to add{% endif %}
+
+  - binary_sensor:
+
+      # ── ALERT: Temperature Stratification ───────────────────────────────
+      # Triggers when tank-sump gradient exceeds threshold
+      - name: fish_tank_temperature_stratification
+        unique_id: fish_tank_temperature_stratification
+        device_class: problem
+        icon: mdi:layers-triple
+        state: >
+          {% set grad = states('sensor.fish_tank_tank_sump_gradient') | float(0) | abs %}
+          {% set threshold = states('input_number.fish_tank_temp_gradient_threshold') | float(3) %}
+          {{ grad > threshold }}
+        attributes:
+          gradient: "{{ states('sensor.fish_tank_tank_sump_gradient') }}°F"
+          threshold: "{{ states('input_number.fish_tank_temp_gradient_threshold') }}°F"
+          recommendation: >
+            {% if is_state('binary_sensor.fish_tank_temperature_stratification', 'on') %}
+              Check return pump flow rate and verify sump heater is working
+            {% else %}
+              Temperature distribution is normal
+            {% endif %}
+
+      # ── ALERT: ATO Water Too Cold ──────────────────────────────────────
+      # Warns if ATO water is significantly colder than tank
+      - name: fish_tank_ato_water_cold_warning
+        unique_id: fish_tank_ato_water_cold_warning
+        device_class: problem
+        icon: mdi:snowflake-alert
+        state: >
+          {% set grad = states('sensor.fish_tank_ato_tank_gradient') | float(0) %}
+          {{ grad < -5.0 }}
+        attributes:
+          difference: "{{ states('sensor.fish_tank_ato_tank_gradient') }}°F"
+          recommendation: "Warm ATO water to room temperature before automatic dosing"
+
+      # ── ALERT: Sensor Malfunction ──────────────────────────────────────
+      # Detects if any sensor reads unrealistic values
+      - name: fish_tank_temperature_sensor_error
+        unique_id: fish_tank_temperature_sensor_error
+        device_class: problem
+        icon: mdi:thermometer-alert
+        state: >
+          {% set tank = states('sensor.fish_tank_temperature') | float(-999) %}
+          {% set sump = states('sensor.fish_tank_sump_temperature') | float(-999) %}
+          {% set ato = states('sensor.fish_tank_ato_temperature') | float(-999) %}
+          {% set sensors = [tank, sump, ato] %}
+          {% set invalid = sensors | select('lt', 32) | list | length + sensors | select('gt', 120) | list | length %}
+          {{ invalid > 0 or tank == -999 or sump == -999 or ato == -999 }}
+
+# ── AUTOMATIONS ───────────────────────────────────────────────────────────────
+automation:
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🔧 CALIBRATION UPDATES
+  # When user adjusts calibration, send to ESPHome device
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: fish_tank_apply_tank_temp_calibration
+    alias: "🐟 Apply Tank Temperature Calibration"
+    description: "Sends calibration offset to ESPHome when changed"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: input_number.fish_tank_temp_calibration
+    action:
+      - service: esphome.fish_tank_temps_calibrate_tank_temp
+        data:
+          offset: "{{ states('input_number.fish_tank_temp_calibration') | float }}"
+
+  - id: fish_tank_apply_sump_temp_calibration
+    alias: "🐟 Apply Sump Temperature Calibration"
+    description: "Sends calibration offset to ESPHome when changed"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: input_number.fish_tank_sump_temp_calibration
+    action:
+      - service: esphome.fish_tank_temps_calibrate_sump_temp
+        data:
+          offset: "{{ states('input_number.fish_tank_sump_temp_calibration') | float }}"
+
+  - id: fish_tank_apply_ato_temp_calibration
+    alias: "🐟 Apply ATO Temperature Calibration"
+    description: "Sends calibration offset to ESPHome when changed"
+    mode: restart
+    trigger:
+      - platform: state
+        entity_id: input_number.fish_tank_ato_temp_calibration
+    action:
+      - service: esphome.fish_tank_temps_calibrate_ato_temp
+        data:
+          offset: "{{ states('input_number.fish_tank_ato_temp_calibration') | float }}"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🚨 TEMPERATURE ALERTS
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: fish_tank_temperature_stratification_alert
+    alias: "🐟 Fish Tank: Temperature Stratification Alert"
+    description: >
+      Alerts when temperature difference between tank and sump
+      exceeds threshold (indicates poor circulation)
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.fish_tank_temperature_stratification
+        to: "on"
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Fish Tank: Temperature Stratification"
+          message: >
+            Tank-Sump gradient: {{ states('sensor.fish_tank_tank_sump_gradient') }}°F
+            (threshold: {{ states('input_number.fish_tank_temp_gradient_threshold') }}°F).
+            Tank: {{ states('sensor.fish_tank_temperature') }}°F
+            Sump: {{ states('sensor.fish_tank_sump_temperature') }}°F
+            Check circulation pump and heater placement.
+          data:
+            tag: fish_tank_temp_stratification
+
+  - id: fish_tank_ato_water_cold_alert
+    alias: "🐟 Fish Tank: ATO Water Too Cold Alert"
+    description: >
+      Warns when ATO reservoir water is much colder than tank
+      (risk of temperature shock when topping off)
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.fish_tank_ato_water_cold_warning
+        to: "on"
+        for: "00:02:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "❄️ Fish Tank: ATO Water Too Cold"
+          message: >
+            ATO reservoir is {{ states('sensor.fish_tank_ato_tank_gradient') }}°F
+            colder than tank.
+            ATO: {{ states('sensor.fish_tank_ato_temperature') }}°F
+            Tank: {{ states('sensor.fish_tank_temperature') }}°F
+            Warm reservoir to room temp before auto top-off activates.
+          data:
+            tag: fish_tank_ato_cold
+
+  - id: fish_tank_temperature_sensor_failure_alert
+    alias: "🐟 Fish Tank: Temperature Sensor Failure"
+    description: "Alerts when temperature sensor reports unrealistic values"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.fish_tank_temperature_sensor_error
+        to: "on"
+        for: "00:01:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🚨 Fish Tank: Temperature Sensor Error"
+          message: >
+            One or more temperature sensors reporting invalid readings.
+            Tank: {{ states('sensor.fish_tank_temperature') }}°F
+            Sump: {{ states('sensor.fish_tank_sump_temperature') }}°F
+            ATO: {{ states('sensor.fish_tank_ato_temperature') }}°F
+            Check sensor connections and ESPHome device status.
+          data:
+            tag: fish_tank_temp_sensor_error
+            priority: high
+
+  - id: fish_tank_raspberry_pi_offline_alert
+    alias: "🐟 Fish Tank: Temperature Monitor Offline"
+    description: "Alerts when Raspberry Pi temperature monitor goes offline"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.temperature_monitor_status
+        to: "off"
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.fish_tank_alerts_enabled
+        state: "on"
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "📡 Fish Tank: Temp Monitor Offline"
+          message: >
+            Raspberry Pi temperature monitor has been offline for 5 minutes.
+            Check Pi power supply and network connection.
+          data:
+            tag: fish_tank_pi_offline
+            priority: high
+
+# ── SCRIPTS ───────────────────────────────────────────────────────────────────
+script:
+
+  fish_tank_reset_temp_calibrations:
+    alias: "🐟 Fish Tank: Reset All Temperature Calibrations"
+    description: "Resets all temperature calibration offsets to 0"
+    icon: mdi:restart
+    sequence:
+      - service: input_number.set_value
+        target:
+          entity_id:
+            - input_number.fish_tank_temp_calibration
+            - input_number.fish_tank_sump_temp_calibration
+            - input_number.fish_tank_ato_temp_calibration
+        data:
+          value: 0
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "🔧 Temperature Calibrations Reset"
+          message: "All temperature sensor calibrations reset to 0°F"
+
+###############################################################################
+# CALIBRATION PROCEDURE
+###############################################################################
+#
+# To calibrate your temperature sensors:
+#
+# 1. Get a reference thermometer (digital aquarium thermometer or infrared)
+# 2. Place reference thermometer in tank, wait 5 minutes
+# 3. Compare readings:
+#      Reference: 76.5°F
+#      Tank sensor: 77.2°F
+#      Difference: +0.7°F (sensor reads high)
+# 4. Go to Settings view → Temperature Calibration
+# 5. Set "Tank Temp Calibration Offset" to -0.7
+#      (negative because sensor reads high)
+# 6. Sensor now shows: 77.2 - 0.7 = 76.5°F ✓
+# 7. Repeat for Sump and ATO sensors
+#
+# The offset is saved in ESPHome and persists across reboots.
+#
+###############################################################################
