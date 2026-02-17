@@ -221,11 +221,18 @@ template:
         icon: mdi:water-sync
         state: >
           {% set last = states('input_datetime.fish_tank_last_water_change') %}
-          {% if last in ['unknown','unavailable',''] %}
-            unknown
+          {% set ts = as_timestamp(last, none) %}
+          {% if ts is none %}
+            0
           {% else %}
-            {{ ((now() - strptime(last, '%Y-%m-%d %H:%M:%S')).total_seconds() / 86400) | round(1) }}
+            {{ ((now().timestamp() - ts) / 86400) | round(1) }}
           {% endif %}
+        attributes:
+          logged: >
+            {{ as_timestamp(states('input_datetime.fish_tank_last_water_change'), none) is not none }}
+          last_date: >
+            {% set last = states('input_datetime.fish_tank_last_water_change') %}
+            {{ last if as_timestamp(last, none) is not none else 'Not logged yet' }}
 
       - name: fish_tank_days_since_filter_clean
         unique_id: fish_tank_days_since_filter_clean
@@ -233,11 +240,18 @@ template:
         icon: mdi:air-filter
         state: >
           {% set last = states('input_datetime.fish_tank_last_filter_clean') %}
-          {% if last in ['unknown','unavailable',''] %}
-            unknown
+          {% set ts = as_timestamp(last, none) %}
+          {% if ts is none %}
+            0
           {% else %}
-            {{ ((now() - strptime(last, '%Y-%m-%d %H:%M:%S')).total_seconds() / 86400) | round(1) }}
+            {{ ((now().timestamp() - ts) / 86400) | round(1) }}
           {% endif %}
+        attributes:
+          logged: >
+            {{ as_timestamp(states('input_datetime.fish_tank_last_filter_clean'), none) is not none }}
+          last_date: >
+            {% set last = states('input_datetime.fish_tank_last_filter_clean') %}
+            {{ last if as_timestamp(last, none) is not none else 'Not logged yet' }}
 
       - name: fish_tank_days_since_fert_dose
         unique_id: fish_tank_days_since_fert_dose
@@ -245,21 +259,32 @@ template:
         icon: mdi:leaf
         state: >
           {% set last = states('input_datetime.fish_tank_last_fert_dose') %}
-          {% if last in ['unknown','unavailable',''] %}
-            unknown
+          {% set ts = as_timestamp(last, none) %}
+          {% if ts is none %}
+            0
           {% else %}
-            {{ ((now() - strptime(last, '%Y-%m-%d %H:%M:%S')).total_seconds() / 86400) | round(1) }}
+            {{ ((now().timestamp() - ts) / 86400) | round(1) }}
           {% endif %}
+        attributes:
+          logged: >
+            {{ as_timestamp(states('input_datetime.fish_tank_last_fert_dose'), none) is not none }}
+          last_date: >
+            {% set last = states('input_datetime.fish_tank_last_fert_dose') %}
+            {{ last if as_timestamp(last, none) is not none else 'Not logged yet' }}
 
       - name: fish_tank_water_change_due_in
         unique_id: fish_tank_water_change_due_in
         unit_of_measurement: days
         icon: mdi:calendar-clock
         state: >
-          {% set days_since = states('sensor.fish_tank_days_since_water_change') | float(-1) %}
-          {% set interval   = states('input_number.fish_tank_water_change_interval') | float(7) %}
-          {% if days_since == -1 %}unknown
-          {% else %}{{ (interval - days_since) | round(1) }}{% endif %}
+          {% set days_since = states('sensor.fish_tank_days_since_water_change') | float(0) %}
+          {% set interval = states('input_number.fish_tank_water_change_interval') | float(7) %}
+          {% set logged = state_attr('sensor.fish_tank_days_since_water_change', 'logged') %}
+          {% if not logged %}
+            {{ interval | round(1) }}
+          {% else %}
+            {{ (interval - days_since) | round(1) }}
+          {% endif %}
         attributes:
           overdue: >
             {{ states('sensor.fish_tank_water_change_due_in') | float(0) < 0 }}
@@ -269,26 +294,29 @@ template:
         unit_of_measurement: days
         icon: mdi:calendar-clock
         state: >
-          {% set days_since = states('sensor.fish_tank_days_since_filter_clean') | float(-1) %}
-          {% set interval   = states('input_number.fish_tank_filter_clean_interval') | float(14) %}
-          {% if days_since == -1 %}unknown
-          {% else %}{{ (interval - days_since) | round(1) }}{% endif %}
+          {% set days_since = states('sensor.fish_tank_days_since_filter_clean') | float(0) %}
+          {% set interval = states('input_number.fish_tank_filter_clean_interval') | float(14) %}
+          {% set logged = state_attr('sensor.fish_tank_days_since_filter_clean', 'logged') %}
+          {% if not logged %}
+            {{ interval | round(1) }}
+          {% else %}
+            {{ (interval - days_since) | round(1) }}
+          {% endif %}
 
       - name: fish_tank_tank_age_days
         unique_id: fish_tank_tank_age_days
         unit_of_measurement: days
         icon: mdi:calendar-range
         state: >
-          {% set setup = states('input_datetime.fish_tank_setup_date') %}
-          {% if setup not in ['unknown','unavailable',''] %}
-            {% set setup_date = as_timestamp(setup) %}
-            {% if setup_date %}
-              {{ ((now().timestamp() - setup_date) / 86400) | int }}
-            {% else %}
-              unknown
-            {% endif %}
+          {% set ts = as_timestamp(states('input_datetime.fish_tank_setup_date'), none) %}
+          {% if ts is none %}
+            0
           {% else %}
-            unknown
+            {{ ((now().timestamp() - ts) / 86400) | int }}
           {% endif %}
         availability: >
           {{ states('input_datetime.fish_tank_setup_date') not in ['unknown', 'unavailable', ''] }}
+        attributes:
+          setup_date: >
+            {% set last = states('input_datetime.fish_tank_setup_date') %}
+            {{ last if as_timestamp(last, none) is not none else 'Not set' }}
