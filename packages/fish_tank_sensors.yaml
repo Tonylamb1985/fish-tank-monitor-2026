@@ -1,163 +1,294 @@
 ###############################################################################
-# 🐠 AQUARIUM THEME — Home Assistant Custom Theme
+# 📦 PACKAGE: fish_tank_sensors.yaml
 # ─────────────────────────────────────────────────────────────────────────────
-# A beautiful underwater aquarium theme with deep ocean blues, frosted glass
-# cards, and cyan accents. Applies globally to all dashboards and views.
+# Template sensors that derive useful states from raw hardware readings.
+# Provides health scores, status labels, maintenance countdown timers,
+# and per-parameter status sensors for use in the dashboard and automations.
 #
 # INSTALL:
-#   1. Create folder: config/themes/
-#   2. Save this file as: config/themes/aquarium.yaml
-#   3. Add to configuration.yaml:
-#        frontend:
-#          themes: !include_dir_merge_named themes
-#   4. Restart Home Assistant
-#   5. Go to your profile (bottom left) → Theme → select "Aquarium"
+#   Drop in:  config/packages/fish_tank_sensors.yaml
+#   Restart Home Assistant after adding.
 #
-# APPLY TO DASHBOARD ONLY:
-#   Edit dashboard → ⋮ → Edit Dashboard → theme: aquarium (in raw config)
+# REQUIRES:  fish_tank_helpers.yaml (for threshold input_numbers)
+# HARDWARE:  Your physical sensors should already expose entities named:
+#              sensor.fish_tank_temperature
+#              sensor.fish_tank_ph
+#              sensor.fish_tank_ammonia
+#              sensor.fish_tank_nitrite
+#              sensor.fish_tank_nitrate
+#              sensor.fish_tank_dissolved_o2
+#              sensor.fish_tank_gh
+#              sensor.fish_tank_kh
+#              sensor.fish_tank_tds
+#              sensor.fish_tank_co2
+#              sensor.fish_tank_turbidity
+#              sensor.fish_tank_water_level
 ###############################################################################
 
-aquarium:
-  
-  # ── PRIMARY UI COLORS ────────────────────────────────────────────────────
-  primary-color: "#00b8d4"                    # Cyan - primary accent
-  accent-color: "#26c6da"                     # Light cyan - secondary accent
-  dark-primary-color: "#006080"               # Deep cyan
-  light-primary-color: "#80deea"              # Pale cyan
-  
-  # ── TEXT COLORS ──────────────────────────────────────────────────────────
-  primary-text-color: "#e0f7fa"               # Very light cyan (high contrast)
-  text-primary-color: "#ffffff"               # White text on primary
-  secondary-text-color: "#b0bec5"             # Light blue-grey
-  disabled-text-color: "#607d8b"              # Blue-grey
-  label-badge-border-color: "#00b8d4"         # Cyan
-  
-  # ── BACKGROUND COLORS ────────────────────────────────────────────────────
-  # Deep ocean gradient - light at top (water surface), dark at bottom (ocean floor)
-  primary-background-color: "#001a33"         # Deep navy (main background)
-  secondary-background-color: "#002244"       # Slightly lighter navy
-  divider-color: "rgba(0,180,220,0.2)"        # Cyan divider lines
-  
-  # ── CARD STYLING ─────────────────────────────────────────────────────────
-  # Frosted glass aquarium panel effect
-  card-background-color: "rgba(0,80,120,0.4)" # Translucent blue glass
-  paper-card-background-color: "rgba(0,80,120,0.4)"
-  
-  # ── HEADER & SIDEBAR ─────────────────────────────────────────────────────
-  app-header-background-color: "#001a33"      # Deep navy header
-  app-header-text-color: "#e0f7fa"            # Light cyan text
-  sidebar-background-color: "#001a33"         # Deep navy sidebar
-  sidebar-icon-color: "#80deea"               # Pale cyan icons
-  sidebar-text-color: "#e0f7fa"               # Light cyan text
-  sidebar-selected-background-color: "rgba(0,150,200,0.3)"
-  sidebar-selected-icon-color: "#00e5ff"      # Bright cyan when selected
-  sidebar-selected-text-color: "#00e5ff"
-  
-  # ── STATES & TOGGLES ─────────────────────────────────────────────────────
-  state-icon-color: "#80deea"                 # Default icon color
-  state-icon-active-color: "#00e5ff"          # Bright cyan when active
-  state-icon-unavailable-color: "#546e7a"     # Dark blue-grey
-  
-  # Switch colors
-  switch-checked-button-color: "#00e5ff"      # Bright cyan toggle
-  switch-checked-track-color: "#006080"       # Deep cyan track
-  switch-unchecked-button-color: "#546e7a"    # Grey toggle when off
-  switch-unchecked-track-color: "#37474f"     # Dark grey track when off
-  
-  # Slider colors
-  slider-color: "#00b8d4"                     # Cyan slider
-  slider-secondary-color: "#004d66"           # Dark cyan background
-  slider-track-color: "#004d66"               # Track color
-  
-  # ── TABLE & LIST COLORS ──────────────────────────────────────────────────
-  table-row-background-color: "rgba(0,60,90,0.3)"
-  table-row-alternative-background-color: "rgba(0,80,120,0.3)"
-  data-table-background-color: "rgba(0,40,60,0.4)"
-  
-  # ── INPUT FIELDS ─────────────────────────────────────────────────────────
-  input-idle-line-color: "rgba(0,180,220,0.4)"
-  input-hover-line-color: "#00b8d4"
-  input-disabled-line-color: "rgba(96,125,139,0.3)"
-  input-outlined-idle-border-color: "rgba(0,180,220,0.4)"
-  input-outlined-hover-border-color: "#00b8d4"
-  input-fill-color: "rgba(0,60,90,0.5)"
-  input-ink-color: "#e0f7fa"
-  input-label-ink-color: "#b0bec5"
-  input-disabled-ink-color: "#607d8b"
-  
-  # ── CHIPS & BADGES ───────────────────────────────────────────────────────
-  label-badge-red: "#f44336"                  # Critical alert
-  label-badge-blue: "#00b8d4"                 # Info
-  label-badge-green: "#4caf50"                # Success
-  label-badge-yellow: "#ffc107"               # Warning
-  label-badge-grey: "#9e9e9e"                 # Neutral
-  
-  # ── MARKDOWN & CODE ──────────────────────────────────────────────────────
-  markdown-code-background-color: "rgba(0,40,60,0.6)"
-  code-editor-background-color: "#001a33"
-  
-  # ── ENERGY DASHBOARD ─────────────────────────────────────────────────────
-  energy-grid-consumption-color: "#00b8d4"
-  energy-grid-return-color: "#26c6da"
-  energy-solar-color: "#ffc107"
-  energy-battery-in-color: "#4caf50"
-  energy-battery-out-color: "#f44336"
-  energy-gas-color: "#ff9800"
-  energy-water-color: "#00e5ff"
-  
-  # ── GRAPH COLORS ─────────────────────────────────────────────────────────
-  # History graph default colors
-  history-color-1: "#00b8d4"                  # Cyan
-  history-color-2: "#26c6da"                  # Light cyan
-  history-color-3: "#80deea"                  # Pale cyan
-  history-color-4: "#4dd0e1"                  # Aqua
-  history-color-5: "#00acc1"                  # Dark cyan
-  
-  # ── BUTTONS & CONTROLS ───────────────────────────────────────────────────
-  mdc-theme-primary: "#00b8d4"                # Material design primary
-  mdc-theme-secondary: "#26c6da"              # Material design secondary
-  mdc-theme-on-primary: "#ffffff"             # Text on primary
-  mdc-theme-on-secondary: "#ffffff"           # Text on secondary
-  
-  # ── PAPER ELEMENTS (legacy) ──────────────────────────────────────────────
-  paper-grey-50: "#fafafa"
-  paper-grey-200: "#eeeeee"
-  paper-item-icon-color: "#80deea"            # List item icons
-  paper-item-icon-active-color: "#00e5ff"     # Active item icons
-  
-  # ── SHADOWS & EFFECTS ────────────────────────────────────────────────────
-  # Custom shadow variables for aquarium glow effect
-  ha-card-box-shadow: >
-    0 4px 20px rgba(0,150,200,0.2),
-    inset 0 1px 0 rgba(255,255,255,0.08)
-  ha-card-border-radius: "16px"
-  ha-card-border-width: "2px"
-  ha-card-border-color: "rgba(0,180,220,0.3)"
-  
-  # ── CUSTOM CSS VARIABLES ─────────────────────────────────────────────────
-  # These apply additional aquarium styling globally
-  
-  # Lovelace view background (ocean depth gradient)
-  lovelace-background: >
-    linear-gradient(180deg, 
-      #001a33 0%, 
-      #002244 20%, 
-      #003355 40%, 
-      #004466 60%, 
-      #005577 80%, 
-      #006688 100%)
-  
-  # Card backdrop filter (frosted glass)
-  card-mod-card: |
-    ha-card {
-      backdrop-filter: blur(10px);
-      border: 2px solid rgba(0,180,220,0.3);
-      box-shadow: 
-        0 4px 20px rgba(0,150,200,0.2),
-        inset 0 1px 0 rgba(255,255,255,0.08);
-    }
-  
-  # Custom modes
-  modes:
-    light: {}  # Disable light mode - aquarium is dark only
-    dark: {}   # This theme IS the dark mode
+template:
+
+  # ── PARAMETER STATUS SENSORS ─────────────────────────────────────────────
+  # Each returns: "optimal" | "warning" | "critical" | "unknown"
+  # Used by automations and dashboard chips.
+
+  - sensor:
+
+      - name: fish_tank_temperature_status
+        unique_id: fish_tank_temperature_status
+        icon: mdi:thermometer-water
+        state: >
+          {% set v = states('sensor.fish_tank_temperature') | float(-1) %}
+          {% set lo = states('input_number.fish_tank_temp_min') | float(72) %}
+          {% set hi = states('input_number.fish_tank_temp_max') | float(80) %}
+          {% if v == -1 %}unknown
+          {% elif v < lo - 3 or v > hi + 3 %}critical
+          {% elif v < lo or v > hi %}warning
+          {% else %}optimal{% endif %}
+
+      - name: fish_tank_ph_status
+        unique_id: fish_tank_ph_status
+        icon: mdi:ph
+        state: >
+          {% set v  = states('sensor.fish_tank_ph') | float(-1) %}
+          {% set lo = states('input_number.fish_tank_ph_min') | float(6.5) %}
+          {% set hi = states('input_number.fish_tank_ph_max') | float(7.5) %}
+          {% if v == -1 %}unknown
+          {% elif v < lo - 0.5 or v > hi + 0.5 %}critical
+          {% elif v < lo or v > hi %}warning
+          {% else %}optimal{% endif %}
+
+      - name: fish_tank_ammonia_status
+        unique_id: fish_tank_ammonia_status
+        icon: mdi:flask-remove-outline
+        state: >
+          {% set v   = states('sensor.fish_tank_ammonia') | float(-1) %}
+          {% set max = states('input_number.fish_tank_ammonia_max') | float(0.25) %}
+          {% if v == -1 %}unknown
+          {% elif v > max %}critical
+          {% elif v > 0.0 %}warning
+          {% else %}optimal{% endif %}
+
+      - name: fish_tank_nitrite_status
+        unique_id: fish_tank_nitrite_status
+        icon: mdi:test-tube-off
+        state: >
+          {% set v   = states('sensor.fish_tank_nitrite') | float(-1) %}
+          {% set max = states('input_number.fish_tank_nitrite_max') | float(0.25) %}
+          {% if v == -1 %}unknown
+          {% elif v > max %}critical
+          {% elif v > 0.0 %}warning
+          {% else %}optimal{% endif %}
+
+      - name: fish_tank_nitrate_status
+        unique_id: fish_tank_nitrate_status
+        icon: mdi:water-percent
+        state: >
+          {% set v    = states('sensor.fish_tank_nitrate') | float(-1) %}
+          {% set warn = states('input_number.fish_tank_nitrate_warn') | float(20) %}
+          {% set max  = states('input_number.fish_tank_nitrate_max') | float(40) %}
+          {% if v == -1 %}unknown
+          {% elif v > max %}critical
+          {% elif v > warn %}warning
+          {% else %}optimal{% endif %}
+
+      - name: fish_tank_oxygen_status
+        unique_id: fish_tank_oxygen_status
+        icon: mdi:air-filter
+        state: >
+          {% set v  = states('sensor.fish_tank_dissolved_o2') | float(-1) %}
+          {% set lo = states('input_number.fish_tank_o2_min') | float(6) %}
+          {% if v == -1 %}unknown
+          {% elif v < lo - 1 %}critical
+          {% elif v < lo %}warning
+          {% else %}optimal{% endif %}
+
+      - name: fish_tank_gh_status
+        unique_id: fish_tank_gh_status
+        icon: mdi:water-opacity
+        state: >
+          {% set v  = states('sensor.fish_tank_gh') | float(-1) %}
+          {% set lo = states('input_number.fish_tank_gh_min') | float(4) %}
+          {% set hi = states('input_number.fish_tank_gh_max') | float(12) %}
+          {% if v == -1 %}unknown
+          {% elif v < lo or v > hi %}warning
+          {% else %}optimal{% endif %}
+
+      - name: fish_tank_kh_status
+        unique_id: fish_tank_kh_status
+        icon: mdi:shield-water
+        state: >
+          {% set v  = states('sensor.fish_tank_kh') | float(-1) %}
+          {% set lo = states('input_number.fish_tank_kh_min') | float(4) %}
+          {% set hi = states('input_number.fish_tank_kh_max') | float(8) %}
+          {% if v == -1 %}unknown
+          {% elif v < lo or v > hi %}warning
+          {% else %}optimal{% endif %}
+
+      - name: fish_tank_co2_status
+        unique_id: fish_tank_co2_status
+        icon: mdi:molecule-co2
+        state: >
+          {% if is_state('input_boolean.fish_tank_planted_tank', 'off') %}
+            not_applicable
+          {% else %}
+            {% set v  = states('sensor.fish_tank_co2') | float(-1) %}
+            {% set lo = states('input_number.fish_tank_co2_min') | float(15) %}
+            {% set hi = states('input_number.fish_tank_co2_max') | float(30) %}
+            {% if v == -1 %}unknown
+            {% elif v > hi + 10 %}critical
+            {% elif v < lo or v > hi %}warning
+            {% else %}optimal{% endif %}
+          {% endif %}
+
+      # ── OVERALL TANK HEALTH SCORE (0–100) ──────────────────────────────
+      # Weighted: nitrogen params count most, then temp/pH, then hardness
+      - name: fish_tank_health_score
+        unique_id: fish_tank_health_score
+        unit_of_measurement: "%"
+        icon: mdi:heart-pulse
+        state: >
+          {% set statuses = [
+            states('sensor.fish_tank_temperature_status'),
+            states('sensor.fish_tank_ph_status'),
+            states('sensor.fish_tank_ammonia_status'),
+            states('sensor.fish_tank_nitrite_status'),
+            states('sensor.fish_tank_nitrate_status'),
+            states('sensor.fish_tank_oxygen_status')
+          ] %}
+          {% set score = namespace(val=100) %}
+          {% for s in statuses %}
+            {% if s == 'critical' %}{% set score.val = score.val - 20 %}
+            {% elif s == 'warning' %}{% set score.val = score.val - 8 %}
+            {% endif %}
+          {% endfor %}
+          {{ [score.val, 0] | max }}
+        attributes:
+          status_breakdown: >
+            Temp: {{ states('sensor.fish_tank_temperature_status') }},
+            pH: {{ states('sensor.fish_tank_ph_status') }},
+            NH₃: {{ states('sensor.fish_tank_ammonia_status') }},
+            NO₂: {{ states('sensor.fish_tank_nitrite_status') }},
+            NO₃: {{ states('sensor.fish_tank_nitrate_status') }},
+            O₂: {{ states('sensor.fish_tank_oxygen_status') }}
+
+      # ── OVERALL TANK STATUS (for header banner) ─────────────────────────
+      - name: fish_tank_overall_status
+        unique_id: fish_tank_overall_status
+        icon: mdi:fishbowl
+        state: >
+          {% set amm_s = states('sensor.fish_tank_ammonia_status') %}
+          {% set no2_s = states('sensor.fish_tank_nitrite_status') %}
+          {% set tmp_s = states('sensor.fish_tank_temperature_status') %}
+          {% set ph_s  = states('sensor.fish_tank_ph_status') %}
+          {% set no3_s = states('sensor.fish_tank_nitrate_status') %}
+          {% set o2_s  = states('sensor.fish_tank_oxygen_status') %}
+          {% if amm_s == 'critical' or no2_s == 'critical' %}critical
+          {% elif tmp_s == 'critical' or ph_s == 'critical' %}critical
+          {% elif 'warning' in [amm_s, no2_s, tmp_s, ph_s, no3_s, o2_s] %}warning
+          {% else %}healthy{% endif %}
+        attributes:
+          message: >
+            {% set amm = states('sensor.fish_tank_ammonia') | float(0) %}
+            {% set no2 = states('sensor.fish_tank_nitrite') | float(0) %}
+            {% set tmp = states('sensor.fish_tank_temperature') | float(0) %}
+            {% set ph  = states('sensor.fish_tank_ph') | float(0) %}
+            {% set no3 = states('sensor.fish_tank_nitrate') | float(0) %}
+            {% set o2  = states('sensor.fish_tank_dissolved_o2') | float(0) %}
+            {% set lo_t = states('input_number.fish_tank_temp_min') | float(72) %}
+            {% set hi_t = states('input_number.fish_tank_temp_max') | float(80) %}
+            {% if amm > 0.25 %}
+              🚨 CRITICAL: Ammonia at {{ amm }} ppm — immediate 25% water change needed!
+            {% elif no2 > 0.25 %}
+              🚨 CRITICAL: Nitrite at {{ no2 }} ppm — check your cycle, water change now!
+            {% elif tmp < lo_t or tmp > hi_t %}
+              ⚠️ Temperature {{ tmp }}°F out of range ({{ lo_t }}–{{ hi_t }}°F)
+            {% elif ph < 6.5 or ph > 7.5 %}
+              ⚠️ pH {{ ph }} out of safe range (6.5–7.5)
+            {% elif no3 > 40 %}
+              ⚠️ Nitrate high at {{ no3 }} ppm — schedule water change soon
+            {% elif o2 < 6 %}
+              ⚠️ Low dissolved oxygen ({{ o2 }} mg/L) — check air pump
+            {% else %}
+              ✅ All parameters within safe range — tank is healthy!
+            {% endif %}
+
+  # ── MAINTENANCE COUNTDOWN SENSORS ─────────────────────────────────────────
+  - sensor:
+
+      - name: fish_tank_days_since_water_change
+        unique_id: fish_tank_days_since_water_change
+        unit_of_measurement: days
+        icon: mdi:water-sync
+        state: >
+          {% set last = states('input_datetime.fish_tank_last_water_change') %}
+          {% if last in ['unknown','unavailable',''] %}
+            unknown
+          {% else %}
+            {{ ((now() - strptime(last, '%Y-%m-%d %H:%M:%S')).total_seconds() / 86400) | round(1) }}
+          {% endif %}
+
+      - name: fish_tank_days_since_filter_clean
+        unique_id: fish_tank_days_since_filter_clean
+        unit_of_measurement: days
+        icon: mdi:air-filter
+        state: >
+          {% set last = states('input_datetime.fish_tank_last_filter_clean') %}
+          {% if last in ['unknown','unavailable',''] %}
+            unknown
+          {% else %}
+            {{ ((now() - strptime(last, '%Y-%m-%d %H:%M:%S')).total_seconds() / 86400) | round(1) }}
+          {% endif %}
+
+      - name: fish_tank_days_since_fert_dose
+        unique_id: fish_tank_days_since_fert_dose
+        unit_of_measurement: days
+        icon: mdi:leaf
+        state: >
+          {% set last = states('input_datetime.fish_tank_last_fert_dose') %}
+          {% if last in ['unknown','unavailable',''] %}
+            unknown
+          {% else %}
+            {{ ((now() - strptime(last, '%Y-%m-%d %H:%M:%S')).total_seconds() / 86400) | round(1) }}
+          {% endif %}
+
+      - name: fish_tank_water_change_due_in
+        unique_id: fish_tank_water_change_due_in
+        unit_of_measurement: days
+        icon: mdi:calendar-clock
+        state: >
+          {% set days_since = states('sensor.fish_tank_days_since_water_change') | float(-1) %}
+          {% set interval   = states('input_number.fish_tank_water_change_interval') | float(7) %}
+          {% if days_since == -1 %}unknown
+          {% else %}{{ (interval - days_since) | round(1) }}{% endif %}
+        attributes:
+          overdue: >
+            {{ states('sensor.fish_tank_water_change_due_in') | float(0) < 0 }}
+
+      - name: fish_tank_filter_clean_due_in
+        unique_id: fish_tank_filter_clean_due_in
+        unit_of_measurement: days
+        icon: mdi:calendar-clock
+        state: >
+          {% set days_since = states('sensor.fish_tank_days_since_filter_clean') | float(-1) %}
+          {% set interval   = states('input_number.fish_tank_filter_clean_interval') | float(14) %}
+          {% if days_since == -1 %}unknown
+          {% else %}{{ (interval - days_since) | round(1) }}{% endif %}
+
+      - name: fish_tank_tank_age_days
+        unique_id: fish_tank_tank_age_days
+        unit_of_measurement: days
+        icon: mdi:calendar-range
+        state: >
+          {% set setup = states('input_datetime.fish_tank_setup_date') %}
+          {% if setup not in ['unknown','unavailable',''] %}
+            {% set setup_date = as_timestamp(setup) %}
+            {% if setup_date %}
+              {{ ((now().timestamp() - setup_date) / 86400) | int }}
+            {% else %}
+              unknown
+            {% endif %}
+          {% else %}
+            unknown
+          {% endif %}
+        availability: >
+          {{ states('input_datetime.fish_tank_setup_date') not in ['unknown', 'unavailable', ''] }}
