@@ -1,0 +1,178 @@
+###############################################################################
+# 📹 CAMERA VIEW — Add to Fish Tank Dashboard
+# ─────────────────────────────────────────────────────────────────────────────
+# Paste these cards into your fish_tank_dashboard.yaml
+# Add them after the existing cards in the Overview view
+###############################################################################
+
+# ── CAMERA LIVE VIEW ──────────────────────────────────────────────────────────
+# Shows live camera feed with AI detection overlay
+- type: custom:frigate-card
+  cameras:
+    - camera_entity: camera.fish_tank
+      live_provider: frigate
+  view:
+    default: live
+    update_seconds: 5
+  live:
+    preload: true
+    lazy_load: false
+    controls:
+      next_previous:
+        enabled: false
+  menu:
+    mode: hidden
+  dimensions:
+    aspect_ratio_mode: dynamic
+  card_mod:
+    style: |
+      ha-card {
+        grid-column: 1 / 3;
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── CAMERA STATS & ACTIVITY ───────────────────────────────────────────────────
+- type: entities
+  grid-column: 3 / 5
+  title: "📹 Camera Monitoring"
+  entities:
+    - entity: sensor.fish_tank_camera_status
+      name: Camera Status
+      icon: mdi:camera
+    - entity: sensor.fish_tank_bird_count
+      name: Visible Fish Count
+      icon: mdi:fish
+    - entity: sensor.fish_tank_fish_visibility
+      name: Fish Visibility
+      icon: mdi:eye-outline
+    - entity: sensor.fish_tank_activity_score
+      name: Activity Score
+      icon: mdi:chart-line
+    - entity: binary_sensor.fish_tank_fish_active
+      name: Fish Active
+      icon: mdi:swim
+    - entity: binary_sensor.fish_tank_feeding_event
+      name: Feeding Event Detected
+      icon: mdi:food-fish
+    - entity: binary_sensor.fish_tank_motion
+      name: Motion Detected
+      icon: mdi:motion-sensor
+    - type: divider
+    - entity: switch.fish_tank_detect
+      name: AI Detection
+      icon: mdi:radar
+    - entity: switch.fish_tank_recordings
+      name: 24/7 Recording
+      icon: mdi:record-rec
+    - type: button
+      name: "📸 Capture Snapshot"
+      action_name: Capture
+      tap_action:
+        action: call-service
+        service: script.fish_tank_capture_snapshot
+    - type: button
+      name: "🎬 Generate Today's Timelapse"
+      action_name: Generate
+      tap_action:
+        action: call-service
+        service: script.fish_tank_timelapse_today
+  card_mod:
+    style: |
+      ha-card {
+        grid-column: 3 / 5;
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── FISH ACTIVITY HISTORY GRAPH ───────────────────────────────────────────────
+- type: custom:mini-graph-card
+  name: "🐟 Fish Activity — 24h"
+  icon: mdi:chart-timeline-variant
+  entities:
+    - entity: sensor.fish_tank_activity_score
+      name: Activity
+      color: "#00e5ff"
+    - entity: sensor.fish_tank_bird_count
+      name: Visible Fish
+      color: "#26c6da"
+      y_axis: secondary
+  hours_to_show: 24
+  points_per_hour: 4
+  line_width: 2
+  smoothing: true
+  show:
+    extrema: true
+    average: true
+    legend: true
+  lower_bound: 0
+  upper_bound: 100
+  card_mod:
+    style: |
+      ha-card {
+        grid-column: 1 / 3;
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── RECENT EVENTS TIMELINE ────────────────────────────────────────────────────
+- type: custom:frigate-card
+  cameras:
+    - camera_entity: camera.fish_tank
+  view:
+    default: clips
+    update_seconds: 30
+  dimensions:
+    aspect_ratio_mode: dynamic
+  event_gallery:
+    min_columns: 3
+  card_mod:
+    style: |
+      ha-card {
+        grid-column: 3 / 5;
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        box-shadow: 
+          0 4px 20px rgba(0,150,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+###############################################################################
+# INSTALLATION NOTES
+###############################################################################
+#
+# REQUIRED FRONTEND CARD:
+#   Install via HACS → Frontend → search "frigate-card"
+#   Repository: https://github.com/dermotduffy/frigate-hass-card
+#
+# ALTERNATIVE (if not using custom:frigate-card):
+#   Replace custom:frigate-card with standard picture-entity or picture-glance:
+#
+#   - type: picture-entity
+#     entity: camera.fish_tank
+#     camera_view: live
+#     show_state: false
+#     show_name: false
+#
+# PLACEMENT:
+#   These cards should be added to the "Overview" view in the dashboard
+#   Paste them at the end of the cards: list (before the History view section)
+#
+###############################################################################
