@@ -38,8 +38,8 @@ template:
         icon: mdi:thermometer-water
         state: >
           {% set v = states('sensor.fish_tank_temperature') | float(-1) %}
-          {% set lo = states('input_number.fish_tank_temp_min') | float(72) %}
-          {% set hi = states('input_number.fish_tank_temp_max') | float(80) %}
+          {% set lo = states('input_number.fish_tank_temp_min') | float(22) %}
+          {% set hi = states('input_number.fish_tank_temp_max') | float(27) %}
           {% if v == -1 %}unknown
           {% elif v < lo - 3 or v > hi + 3 %}critical
           {% elif v < lo or v > hi %}warning
@@ -194,14 +194,14 @@ template:
             {% set ph  = states('sensor.fish_tank_ph') | float(0) %}
             {% set no3 = states('sensor.fish_tank_nitrate') | float(0) %}
             {% set o2  = states('sensor.fish_tank_dissolved_o2') | float(0) %}
-            {% set lo_t = states('input_number.fish_tank_temp_min') | float(72) %}
-            {% set hi_t = states('input_number.fish_tank_temp_max') | float(80) %}
+            {% set lo_t = states('input_number.fish_tank_temp_min') | float(22) %}
+            {% set hi_t = states('input_number.fish_tank_temp_max') | float(27) %}
             {% if amm > 0.25 %}
               🚨 CRITICAL: Ammonia at {{ amm }} ppm — immediate 25% water change needed!
             {% elif no2 > 0.25 %}
               🚨 CRITICAL: Nitrite at {{ no2 }} ppm — check your cycle, water change now!
             {% elif tmp < lo_t or tmp > hi_t %}
-              ⚠️ Temperature {{ tmp }}°F out of range ({{ lo_t }}–{{ hi_t }}°F)
+              ⚠️ Temperature {{ tmp }}°C out of range ({{ lo_t }}–{{ hi_t }}°C)
             {% elif ph < 6.5 or ph > 7.5 %}
               ⚠️ pH {{ ph }} out of safe range (6.5–7.5)
             {% elif no3 > 40 %}
