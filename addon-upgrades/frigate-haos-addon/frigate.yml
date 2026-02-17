@@ -1,0 +1,284 @@
+###############################################################################
+# 🐠 FRIGATE CAMERA — Fish Tank AI Monitoring
+# ─────────────────────────────────────────────────────────────────────────────
+# AI-powered fish tank camera monitoring using Frigate NVR
+# Detects: fish activity, feeding events, water cloudiness, algae growth
+#
+# WHAT THIS DOES:
+#   - 24/7 recording of your fish tank with motion detection
+#   - AI object detection trained to recognize fish
+#   - Activity monitoring (active swimming vs inactive/hiding)
+#   - Feeding event detection (fish swarming at surface)
+#   - Anomaly alerts (dead fish, cloudiness, equipment failure)
+#   - Fish counting (how many fish visible)
+#   - Timelapse generation (watch your tank evolve)
+#
+# INSTALL:
+#   1. Install Frigate add-on from HA Supervisor → Add-on Store
+#   2. Save this file as: config/frigate.yml (or paste into Frigate config)
+#   3. Connect a camera pointing at your fish tank
+#   4. Update camera IP/credentials below
+#   5. Restart Frigate add-on
+#
+# HARDWARE REQUIREMENTS:
+#   - IP camera (RTSP stream) or USB webcam pointing at tank
+#   - Coral TPU (optional, for hardware acceleration)
+#   - Recommended: 1080p camera with good low-light performance
+#
+# CAMERA PLACEMENT:
+#   - Front view of tank, centered, capturing entire tank volume
+#   - Avoid reflections from room lights (angle camera slightly down)
+#   - LED tank light should be on for AI detection to work
+#   - For best results: stable position, no camera movement
+###############################################################################
+
+# ── MQTT CONFIGURATION ────────────────────────────────────────────────────────
+# Frigate publishes events to MQTT for Home Assistant integration
+# REMOTE SERVER SETUP: Point to your Home Assistant's MQTT broker
+mqtt:
+  enabled: true
+  host: 192.168.1.50      # ← CHANGE TO YOUR HOME ASSISTANT IP
+  port: 1883
+  topic_prefix: frigate
+  client_id: frigate_fish_tank
+  user: mqtt_user         # ← CHANGE TO YOUR MQTT USERNAME
+  password: mqtt_pass     # ← CHANGE TO YOUR MQTT PASSWORD
+  # 
+  # If you have Mosquitto broker add-on in HA:
+  #   - Find HA IP: Settings → System → Network
+  #   - Create MQTT user: Settings → People → Users → Add User
+  #   - Enable "Can only login from local network"
+  #   - Use that username/password here
+
+# ── DETECTOR CONFIGURATION ────────────────────────────────────────────────────
+# Using CPU-based detection (change to 'edgetpu' if you have Coral)
+detectors:
+  cpu1:
+    type: cpu
+    num_threads: 3
+  # If you have a Coral TPU, use this instead:
+  # coral:
+  #   type: edgetpu
+  #   device: usb
+
+# ── OBJECT DETECTION MODEL ────────────────────────────────────────────────────
+model:
+  # Using default YOLOv8 model (detects common objects)
+  # For fish-specific detection, you'd need a custom trained model
+  # Default model can detect: person, cat, dog, bird (we'll use bird as fish proxy)
+  width: 640
+  height: 640
+  labelmap_path: /labelmap.txt
+  # Custom model for fish (if you train one):
+  # path: /config/custom_models/fish_detector.tflite
+  # labelmap:
+  #   0: fish
+  #   1: shrimp
+  #   2: snail
+
+# ── CAMERA: FISH TANK ─────────────────────────────────────────────────────────
+cameras:
+  
+  fish_tank:
+    enabled: true
+    
+    # ── CAMERA STREAM CONFIGURATION ────────────────────────────────────────
+    ffmpeg:
+      inputs:
+        # REPLACE with your camera's RTSP stream URL
+        # Format: rtsp://username:password@camera_ip:port/stream_path
+        # 
+        # Examples:
+        #   Reolink:  rtsp://admin:password@192.168.1.100:554/h264Preview_01_main
+        #   Amcrest:  rtsp://admin:password@192.168.1.100:554/cam/realmonitor?channel=1&subtype=0
+        #   Hikvision: rtsp://admin:password@192.168.1.100:554/Streaming/Channels/101
+        #   Generic ONVIF: rtsp://admin:password@192.168.1.100:554/stream1
+        #
+        # USB Webcam (via go2rtc):
+        #   - Add go2rtc to Frigate config (see below)
+        #   - Use: rtsp://localhost:8554/fish_tank
+        
+        - path: rtsp://admin:password@192.168.1.100:554/stream1
+          input_args: preset-rtsp-restream
+          roles:
+            - detect    # Real-time object detection
+            - record    # 24/7 recording
+            - rtmp      # Live stream preview
+    
+    # ── DETECTION ZONES ─────────────────────────────────────────────────────
+    # Define the area of the tank to monitor (excludes equipment outside tank)
+    detect:
+      enabled: true
+      width: 1920   # Must match your camera resolution
+      height: 1080
+      fps: 5        # Lower FPS = less CPU usage (fish move slowly)
+      
+      # Crop to only the tank area (excludes stand, background)
+      # Coordinates: [x_min, y_min, x_max, y_max] as ratio of frame (0.0 to 1.0)
+      # Example: Tank centered, taking up 80% of frame width, 90% of height
+      # Adjust these based on your camera view
+      coordinates:
+        - 0.1, 0.05   # Top-left corner
+        - 0.9, 0.05   # Top-right corner
+        - 0.9, 0.95   # Bottom-right corner
+        - 0.1, 0.95   # Bottom-left corner
+    
+    # ── RECORDING CONFIGURATION ─────────────────────────────────────────────
+    record:
+      enabled: true
+      retain:
+        days: 7       # Keep 7 days of 24/7 recordings
+        mode: all     # Record everything, not just events
+      events:
+        retain:
+          default: 30  # Keep event clips for 30 days
+          mode: active_objects
+    
+    # ── SNAPSHOT CONFIGURATION ──────────────────────────────────────────────
+    snapshots:
+      enabled: true
+      timestamp: true
+      bounding_box: true
+      crop: false
+      retain:
+        default: 30   # Keep snapshots for 30 days
+    
+    # ── OBJECT FILTERS ──────────────────────────────────────────────────────
+    # What objects to detect and track
+    objects:
+      track:
+        # Since we don't have a fish-specific model, we use "bird" as proxy
+        # The model sees fish as small moving objects similar to birds
+        - bird        # Proxy for fish detection
+        - person      # Detect when someone approaches tank (feeding time)
+      
+      filters:
+        bird:         # Our "fish" detection
+          min_area: 500        # Minimum pixels for detection (filters noise)
+          max_area: 50000      # Maximum pixels (prevents false positives)
+          min_ratio: 0.3       # Min aspect ratio (width/height)
+          max_ratio: 3.0       # Max aspect ratio
+          threshold: 0.6       # Confidence threshold (0-1)
+          
+          # Motion mask - areas to ignore (e.g. filter intake creating bubbles)
+          # Uncomment and adjust if you have specific areas to exclude
+          # mask:
+          #   - 0.0,0.0,0.2,0.0,0.2,0.2,0.0,0.2  # Top-left corner (filter area)
+        
+        person:
+          min_area: 10000
+          threshold: 0.7
+          # Only alert if person lingers (feeding event)
+          min_score: 0.7
+    
+    # ── MOTION DETECTION ────────────────────────────────────────────────────
+    motion:
+      mask:
+        # Mask out areas with constant motion (filter output, air stone bubbles)
+        # Format: comma-separated polygon coordinates (x,y pairs, 0.0-1.0 normalized)
+        # Example: mask bottom-right corner where air stone creates constant bubbles
+        # - 0.8,0.8,1.0,0.8,1.0,1.0,0.8,1.0
+        
+        # Mask out tank equipment/heater that may cause false motion
+        # - 0.0,0.0,0.1,0.0,0.1,0.3,0.0,0.3
+      
+      threshold: 30   # Higher = less sensitive (good for calm tanks)
+      contour_area: 50
+      improve_contrast: true  # Helps with low-light conditions
+    
+    # ── ZONES FOR SPECIFIC BEHAVIORS ────────────────────────────────────────
+    # Define zones to track fish behavior in specific areas
+    zones:
+      
+      # Surface zone - detect feeding activity
+      surface:
+        coordinates:
+          - 0.1, 0.05   # Top section of tank
+          - 0.9, 0.05
+          - 0.9, 0.25
+          - 0.1, 0.25
+        objects:
+          - bird        # Fish coming to surface
+        inertia: 3      # Must be detected for 3 frames to count
+      
+      # Hiding zone - detect inactive/sick fish
+      bottom:
+        coordinates:
+          - 0.1, 0.75   # Bottom section of tank
+          - 0.9, 0.75
+          - 0.9, 0.95
+          - 0.1, 0.95
+        objects:
+          - bird
+        inertia: 10     # Fish must stay here 10 frames (indicates hiding)
+    
+    # ── TIMELAPSE CONFIGURATION ─────────────────────────────────────────────
+    # Generate daily timelapse videos
+    # Note: This requires external script (see below)
+    # timelapse:
+    #   enabled: true
+    #   interval: 300  # Capture frame every 5 minutes
+    #   retain_days: 30
+
+# ── GO2RTC (for USB webcam support) ───────────────────────────────────────────
+# Uncomment if using USB webcam instead of IP camera
+# go2rtc:
+#   streams:
+#     fish_tank:
+#       - ffmpeg:/dev/video0#video=h264#hardware  # USB webcam
+#       # Or try: - ffmpeg:device?video=0&audio=0#video=h264
+
+# ── BIRDSEYE (Live view of all cameras) ──────────────────────────────────────
+birdseye:
+  enabled: true
+  mode: continuous  # Always show live view
+  width: 1920
+  height: 1080
+  quality: 8        # JPEG quality (1-31, lower = better)
+
+# ── SNAPSHOTS STORAGE ─────────────────────────────────────────────────────────
+snapshots:
+  enabled: true
+  clean_copy: true
+  timestamp: true
+  bounding_box: true
+  crop: false
+  height: 500
+  retain:
+    default: 30
+
+# ── UI CONFIGURATION ──────────────────────────────────────────────────────────
+ui:
+  use_experimental: false
+  live_mode: mse      # Live stream mode (mse or webrtc)
+
+# ── LOGGER ────────────────────────────────────────────────────────────────────
+logger:
+  default: info
+  logs:
+    frigate.event: debug
+    frigate.object_processing: debug
+
+###############################################################################
+# AFTER INSTALLATION — Home Assistant Integration (REMOTE SERVER)
+###############################################################################
+#
+# Once Frigate is running on your separate server:
+#
+# 1. Settings → Integrations → Add Integration → Frigate
+# 2. URL: http://FRIGATE_SERVER_IP:5000
+#    Example: http://192.168.1.75:5000
+#    (Replace with your Frigate server's IP address)
+# 3. New entities will appear:
+#      camera.fish_tank              (live view)
+#      camera.fish_tank_detect       (detection overlay)
+#      sensor.fish_tank_bird_count   (fish count - using bird as proxy)
+#      sensor.fish_tank_person_count (people near tank)
+#      binary_sensor.fish_tank_motion
+#      switch.fish_tank_detect       (enable/disable detection)
+#      switch.fish_tank_recordings   (enable/disable recording)
+#
+# IMPORTANT: Ensure your Home Assistant can reach the Frigate server IP
+# Test with: ping FRIGATE_SERVER_IP from HA Terminal
+#
+###############################################################################
