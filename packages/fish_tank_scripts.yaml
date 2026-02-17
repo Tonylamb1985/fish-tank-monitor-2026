@@ -34,11 +34,11 @@ script:
           entity_id: input_datetime.fish_tank_last_feeding
         data:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-      - service: notify.mobile_app_your_phone
+      - service: persistent_notification.create
         data:
           title: "🍽 Fish Tank Fed"
-          message: >
-            Tank fed manually at {{ now().strftime('%H:%M on %d %b') }}.
+          message: "Tank fed at {{ now().strftime('%H:%M on %d %b') }}."
+          notification_id: fish_tank_fed
 
   # ── MAINTENANCE LOGGING ───────────────────────────────────────────────────
 
@@ -55,12 +55,11 @@ script:
       - service: persistent_notification.dismiss
         data:
           notification_id: fish_tank_water_change_due
-      - service: notify.mobile_app_your_phone
+      - service: persistent_notification.create
         data:
           title: "💧 Water Change Logged"
-          message: >
-            Water change recorded at {{ now().strftime('%H:%M on %d %b %Y') }}.
-            Next due in {{ states('input_number.fish_tank_water_change_interval') | int }} days.
+          message: "Water change recorded at {{ now().strftime('%H:%M on %d %b %Y') }}. Next due in {{ states('input_number.fish_tank_water_change_interval') | int }} days."
+          notification_id: fish_tank_water_change
 
   fish_tank_log_filter_clean:
     alias: "🐟 Fish Tank: Log Filter Clean"
@@ -72,12 +71,11 @@ script:
           entity_id: input_datetime.fish_tank_last_filter_clean
         data:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-      - service: notify.mobile_app_your_phone
+      - service: persistent_notification.create
         data:
           title: "🔄 Filter Clean Logged"
-          message: >
-            Filter clean recorded at {{ now().strftime('%H:%M on %d %b %Y') }}.
-            Next due in {{ states('input_number.fish_tank_filter_clean_interval') | int }} days.
+          message: "Filter clean recorded at {{ now().strftime('%H:%M on %d %b %Y') }}. Next due in {{ states('input_number.fish_tank_filter_clean_interval') | int }} days."
+          notification_id: fish_tank_filter_clean
 
   fish_tank_log_glass_clean:
     alias: "🐟 Fish Tank: Log Glass Clean"
@@ -100,11 +98,11 @@ script:
           entity_id: input_datetime.fish_tank_last_fert_dose
         data:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-      - service: notify.mobile_app_your_phone
+      - service: persistent_notification.create
         data:
           title: "🌿 Fertiliser Dosed"
-          message: >
-            Fertiliser dose recorded at {{ now().strftime('%H:%M on %d %b %Y') }}.
+          message: "Fertiliser dose recorded at {{ now().strftime('%H:%M on %d %b %Y') }}."
+          notification_id: fish_tank_fert_dose
 
   fish_tank_log_water_test:
     alias: "🐟 Fish Tank: Log Water Test"
@@ -116,11 +114,11 @@ script:
           entity_id: input_datetime.fish_tank_last_water_test
         data:
           datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-      - service: notify.mobile_app_your_phone
+      - service: persistent_notification.create
         data:
           title: "🧪 Water Test Logged"
-          message: >
-            Manual water test recorded at {{ now().strftime('%H:%M on %d %b %Y') }}.
+          message: "Manual water test recorded at {{ now().strftime('%H:%M on %d %b %Y') }}."
+          notification_id: fish_tank_water_test
 
   fish_tank_log_substrate_vac:
     alias: "🐟 Fish Tank: Log Substrate Vacuum"
@@ -148,12 +146,11 @@ script:
       - service: switch.turn_on
         target:
           entity_id: switch.fish_tank_air_pump
-      - service: notify.mobile_app_your_phone
+      - service: persistent_notification.create
         data:
           title: "🆘 Emergency Aeration Active"
-          message: >
-            CO₂ off. Air pump on. Check fish immediately.
-            If still gasping, perform a 30% water change with aerated water.
+          message: "CO2 off. Air pump on. Check fish immediately. If still gasping, do a 30% water change."
+          notification_id: fish_tank_emergency
 
   fish_tank_all_equipment_on:
     alias: "🐟 Fish Tank: All Equipment On"
@@ -167,10 +164,11 @@ script:
             - switch.fish_tank_heater
             - switch.fish_tank_air_pump
             - switch.fish_tank_uv_sterilizer
-      - service: notify.mobile_app_your_phone
+      - service: persistent_notification.create
         data:
           title: "✅ Fish Tank Equipment On"
           message: "Filter, heater, air pump and UV sterilizer turned on."
+          notification_id: fish_tank_equipment_on
 
   fish_tank_all_equipment_off:
     alias: "🐟 Fish Tank: All Equipment Off"
@@ -186,7 +184,8 @@ script:
             - switch.fish_tank_co2_regulator
             - switch.fish_tank_uv_sterilizer
             - switch.fish_tank_led_lights
-      - service: notify.mobile_app_your_phone
+      - service: persistent_notification.create
         data:
           title: "⛔ Fish Tank Equipment Off"
           message: "All equipment turned off. Remember to restore after maintenance!"
+          notification_id: fish_tank_equipment_off
