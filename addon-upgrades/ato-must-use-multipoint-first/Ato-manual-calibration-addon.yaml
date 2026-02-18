@@ -1,0 +1,409 @@
+# ATO MANUAL CALIBRATION — Add to fish_tank_ato.yaml
+
+# This adds a guided manual calibration process to accurately measure
+# ml per activation. Paste these sections into the existing file.
+
+# ══════════════════════════════════════════════════════════════════════════
+# HELPERS — Add to existing input_number: section
+# ══════════════════════════════════════════════════════════════════════════
+
+  # Calibration test — measured output in ml
+  ato_calibration_test_ml:
+    name: "ATO Calibration Test Output"
+    min: 0
+    max: 2000
+    step: 1
+    initial: 0
+    unit_of_measurement: "ml"
+    icon: mdi:beaker
+    mode: box
+
+  # Calibration test — runtime in seconds
+  ato_calibration_test_runtime:
+    name: "ATO Calibration Test Runtime"
+    min: 5
+    max: 120
+    step: 1
+    initial: 30
+    unit_of_measurement: "s"
+    icon: mdi:timer
+    mode: box
+
+# ══════════════════════════════════════════════════════════════════════════
+# Add to existing input_boolean: section
+# ══════════════════════════════════════════════════════════════════════════
+
+  ato_calibration_in_progress:
+    name: "ATO Calibration In Progress"
+    icon: mdi:beaker-check
+    initial: false
+
+# ══════════════════════════════════════════════════════════════════════════
+# Add to existing input_datetime: section
+# ══════════════════════════════════════════════════════════════════════════
+
+  ato_calibration_start_time:
+    name: "ATO Calibration Start Time"
+    has_date: true
+    has_time: true
+    icon: mdi:timer-play
+
+# ══════════════════════════════════════════════════════════════════════════
+# SENSORS — Add to existing template: - sensor: section
+# ══════════════════════════════════════════════════════════════════════════
+
+      # ── CALIBRATION TEST RUNTIME (live counter) ──────────────────────
+      - name: ato_calibration_actual_runtime
+        unique_id: ato_calibration_actual_runtime
+        unit_of_measurement: "s"
+        state_class: measurement
+        icon: mdi:timer
+        state: >
+          {% if is_state('input_boolean.ato_calibration_in_progress', 'on') %}
+            {% set start_ts = as_timestamp(states('input_datetime.ato_calibration_start_time'), 0) %}
+            {{ (now().timestamp() - start_ts) | int if start_ts > 86400 else 0 }}
+          {% else %}
+            0
+          {% endif %}
+
+      # ── CALCULATED ML PER ACTIVATION (from test) ─────────────────────
+      - name: ato_calibration_calculated_ml
+        unique_id: ato_calibration_calculated_ml
+        unit_of_measurement: "ml"
+        state_class: measurement
+        icon: mdi:calculator
+        state: >
+          {% set measured_ml = states('input_number.ato_calibration_test_ml') | float(0) %}
+          {% set runtime_s = states('input_number.ato_calibration_test_runtime') | float(30) %}
+          {% set max_runtime = states('input_number.ato_max_pump_runtime') | float(60) %}
+          {% if measured_ml > 0 and runtime_s > 0 and max_runtime > 0 %}
+            {{ ((measured_ml / runtime_s) * max_runtime) | round(1) }}
+          {% else %}
+            0
+          {% endif %}
+        attributes:
+          calculation: >
+            {% set measured_ml = states('input_number.ato_calibration_test_ml') | float(0) %}
+            {% set runtime_s = states('input_number.ato_calibration_test_runtime') | float(30) %}
+            {% set max_runtime = states('input_number.ato_max_pump_runtime') | float(60) %}
+            ({{ measured_ml }}ml ÷ {{ runtime_s }}s) × {{ max_runtime }}s = {{ ((measured_ml / runtime_s) * max_runtime) | round(1) }}ml per full cycle
+
+# ══════════════════════════════════════════════════════════════════════════
+# SCRIPTS — Add to existing script: section
+# ══════════════════════════════════════════════════════════════════════════
+
+  ato_start_calibration_test:
+    alias: "💧 ATO: Start Calibration Test"
+    description: >
+      Runs pump for configured test duration. Measure output in a jug
+      and enter the ml value afterward.
+    icon: mdi:beaker-plus
+    fields:
+      test_duration:
+        description: "Test duration in seconds"
+        example: 30
+        selector:
+          number:
+            min: 5
+            max: 120
+            step: 1
+            unit_of_measurement: "s"
+    sequence:
+      # Safety check — don't run if reservoir is low
+      - condition: state
+        entity_id: binary_sensor.ato_reservoir_low
+        state: "off"
+      # Disable cycle tracking so this doesn't affect auto-learn
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.ato_cycle_in_progress
+      # Mark calibration as in progress
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.ato_calibration_in_progress
+      # Record start time
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.ato_calibration_start_time
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      # Store the test duration
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_calibration_test_runtime
+        data:
+          value: "{{ test_duration | default(30) }}"
+      # Notify user to prepare jug
+      - service: persistent_notification.create
+        data:
+          title: "🧪 ATO Calibration Starting"
+          message: >
+            Place a measuring jug under the pump outlet.
+            Pump will run for {{ test_duration | default(30) }} seconds.
+            Starting in 5 seconds...
+          notification_id: ato_calibration_starting
+      - delay: "00:00:05"
+      # Turn on pump
+      - service: switch.turn_on
+        target:
+          entity_id: switch.ato_relay_pump
+      # Wait for test duration
+      - delay: 
+          seconds: "{{ test_duration | default(30) }}"
+      # Turn off pump
+      - service: switch.turn_off
+        target:
+          entity_id: switch.ato_relay_pump
+      # Mark calibration complete
+      - service: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.ato_calibration_in_progress
+      # Prompt user to measure and enter result
+      - service: persistent_notification.create
+        data:
+          title: "🧪 ATO Calibration Complete"
+          message: >
+            Pump ran for {{ test_duration | default(30) }} seconds.
+            
+            📏 Measure the ml in your jug and enter it in:
+            Settings → ATO Calibration → "Calibration Test Output"
+            
+            Then press "Calculate ml Per Activation" to update the manual value.
+          notification_id: ato_calibration_complete
+
+  ato_apply_calibration:
+    alias: "💧 ATO: Apply Calibration Result"
+    description: >
+      Calculates ml per activation from test results and applies
+      as manual override. Also calculates what max_runtime should be.
+    icon: mdi:calculator-variant
+    sequence:
+      - variables:
+          measured_ml: "{{ states('input_number.ato_calibration_test_ml') | float(0) }}"
+          test_runtime: "{{ states('input_number.ato_calibration_test_runtime') | float(30) }}"
+          max_runtime: "{{ states('input_number.ato_max_pump_runtime') | float(60) }}"
+          ml_per_activation: >
+            {% set ml = states('input_number.ato_calibration_test_ml') | float(0) %}
+            {% set test_s = states('input_number.ato_calibration_test_runtime') | float(30) %}
+            {% set max_s = states('input_number.ato_max_pump_runtime') | float(60) %}
+            {{ ((ml / test_s) * max_s) | round(1) if ml > 0 and test_s > 0 else 0 }}
+      # Validate inputs
+      - condition: template
+        value_template: "{{ measured_ml > 0 and test_runtime > 0 }}"
+      # Apply calculated value to manual override
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.ato_ml_per_activation_manual
+        data:
+          value: "{{ ml_per_activation }}"
+      # Notify with results
+      - service: persistent_notification.create
+        data:
+          title: "✅ ATO Calibration Applied"
+          message: >
+            **Calibration Results:**
+            
+            Test: {{ measured_ml | round(0) }}ml in {{ test_runtime | int }}s
+            Flow rate: {{ (measured_ml / test_runtime) | round(2) }}ml/s
+            
+            **Applied to Manual Override:**
+            {{ ml_per_activation | round(1) }}ml per activation
+            (based on max runtime: {{ max_runtime | int }}s)
+            
+            **Suggested Max Runtime:**
+            For ~150ml per cycle: {{ ((150 / (measured_ml / test_runtime)) | round(0)) }}s
+            For ~200ml per cycle: {{ ((200 / (measured_ml / test_runtime)) | round(0)) }}s
+            
+            Auto-learn is now disabled. Set manual override to 0 to re-enable.
+          notification_id: ato_calibration_applied
+
+  ato_guided_calibration:
+    alias: "💧 ATO: Guided Calibration Wizard"
+    description: >
+      Step-by-step calibration process with prompts.
+      Runs 30-second test, calculates result, applies automatically.
+    icon: mdi:wizard-hat
+    sequence:
+      # Step 1 — Instructions
+      - service: persistent_notification.create
+        data:
+          title: "🧙 ATO Calibration Wizard — Step 1/3"
+          message: >
+            **You will need:**
+            - Measuring jug (500ml or larger)
+            - Pen and paper (optional)
+            
+            **Process:**
+            1. Place jug under pump outlet
+            2. Pump runs for 30 seconds
+            3. Measure output in jug
+            4. Wizard calculates and applies result
+            
+            Press the automation again to continue...
+          notification_id: ato_wizard_step1
+      - delay: "00:00:10"
+      # Step 2 — Run test
+      - service: script.ato_start_calibration_test
+        data:
+          test_duration: 30
+      # Wait for test to complete (30s + 5s prep + 2s buffer)
+      - delay: "00:00:37"
+      # Step 3 — Prompt for measurement
+      - service: persistent_notification.create
+        data:
+          title: "🧙 ATO Calibration Wizard — Step 2/3"
+          message: >
+            **Pump test complete!**
+            
+            Measure the water in your jug (in ml).
+            
+            Go to: Settings → ATO Calibration → "Calibration Test Output"
+            Enter the ml value.
+            
+            Then come back and press this automation again to finish.
+          notification_id: ato_wizard_step2
+      # Wait for user to enter value
+      - wait_template: "{{ states('input_number.ato_calibration_test_ml') | float(0) > 0 }}"
+        timeout: "00:05:00"
+      # Step 4 — Apply
+      - service: script.ato_apply_calibration
+      - service: persistent_notification.create
+        data:
+          title: "🧙 ATO Calibration Wizard — Complete!"
+          message: >
+            ✅ Calibration successful!
+            
+            Manual override set to: {{ states('input_number.ato_ml_per_activation_manual') }}ml
+            
+            The system will now use this value for reservoir tracking.
+            Auto-learn is paused (manual override active).
+            
+            To switch back to auto-learn later, set manual override to 0.
+          notification_id: ato_wizard_complete
+
+# ══════════════════════════════════════════════════════════════════════════
+# DASHBOARD CARDS — Add to Settings view in ATO_DASHBOARD_CARDS.yaml
+# ══════════════════════════════════════════════════════════════════════════
+
+# Paste this card into your ATO Settings view:
+
+- type: entities
+  title: "🧪 ATO Manual Calibration"
+  entities:
+    - type: section
+      label: "Quick Start — Guided Wizard"
+    - type: button
+      name: "🧙 Start Calibration Wizard"
+      action_name: Start
+      tap_action:
+        action: call-service
+        service: script.ato_guided_calibration
+        confirmation:
+          text: "Start guided calibration? You'll need a measuring jug."
+    - type: section
+      label: "Manual Calibration Test"
+    - entity: input_number.ato_calibration_test_runtime
+      name: Test Duration
+      icon: mdi:timer
+    - type: button
+      name: "▶️ Run Test (Measure Output)"
+      action_name: Run
+      tap_action:
+        action: call-service
+        service: script.ato_start_calibration_test
+        service_data:
+          test_duration: "{{ states('input_number.ato_calibration_test_runtime') | int }}"
+        confirmation:
+          text: "Run pump for {{ states('input_number.ato_calibration_test_runtime') | int }}s? Have measuring jug ready."
+    - type: section
+      label: "Enter Test Results"
+    - entity: input_number.ato_calibration_test_ml
+      name: Measured Output (ml)
+      icon: mdi:beaker
+    - entity: sensor.ato_calibration_calculated_ml
+      name: Calculated ml Per Activation
+      icon: mdi:calculator
+    - type: button
+      name: "✅ Apply Calibration"
+      action_name: Apply
+      tap_action:
+        action: call-service
+        service: script.ato_apply_calibration
+        confirmation:
+          text: "Set manual override to {{ states('sensor.ato_calibration_calculated_ml') }}ml?"
+    - type: section
+      label: "Current Calibration"
+    - entity: input_number.ato_ml_per_activation_manual
+      name: Manual Override (0 = use auto-learn)
+    - entity: sensor.ato_ml_per_activation
+      name: Active Value
+      secondary_info: attribute
+      attribute: source
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.4), rgba(0,50,80,0.3));
+        border: 2px solid rgba(0,180,220,0.3);
+        border-radius: 16px;
+        margin-bottom: 8px;
+      }
+
+- type: markdown
+  content: |
+    ## 🧪 Manual Calibration Guide
+    
+    ### Method 1: Guided Wizard (Recommended)
+    
+    1. Press **"Start Calibration Wizard"** above
+    2. Follow the prompts — wizard handles everything
+    3. You only need to measure the water and enter ml value
+    
+    ### Method 2: Manual Process
+    
+    1. Set **Test Duration** (default 30s works well)
+    2. Press **"Run Test"** button
+    3. Pump runs for that duration into your measuring jug
+    4. Measure the ml in the jug
+    5. Enter it in **"Measured Output"**
+    6. Check **"Calculated ml Per Activation"** looks reasonable
+    7. Press **"Apply Calibration"** to set manual override
+    
+    ### How the Calculation Works
+    
+    ```
+    ml_per_activation = (measured_ml ÷ test_runtime) × max_runtime
+    ```
+    
+    **Example:**
+    - Test runtime: 30s
+    - Measured: 75ml
+    - Max runtime: 60s
+    - Result: (75 ÷ 30) × 60 = **150ml per activation** ✓
+    
+    ### When to Calibrate Manually
+    
+    - **First installation** — gives auto-learn a good starting point
+    - **After pump replacement** — flow rate will be different
+    - **Tube length changes** — affects head pressure
+    - **Auto-learn seems inaccurate** — manual calibration as ground truth
+    
+    ### When to Switch Back to Auto-Learn
+    
+    After 3-4 refill periods, auto-learn will have built accurate data.
+    To switch back:
+    1. Set **Manual Override** to `0`
+    2. Auto-learn takes over using the rolling average
+    
+    Manual calibration gives auto-learn a good starting point, then
+    auto-learn refines it over time based on real usage patterns.
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(0,80,120,0.25), rgba(0,50,80,0.2));
+        border: 2px solid rgba(0,180,220,0.25);
+        border-radius: 16px;
+        padding: 8px;
+      }
+      ha-markdown {
+        color: #e0f7fa !important;
+      }
