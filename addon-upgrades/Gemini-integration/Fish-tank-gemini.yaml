@@ -1,0 +1,480 @@
+###############################################################################
+# 📦 PACKAGE: fish_tank_gemini.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Gemini AI integration for fish tank monitoring — vision + text analysis
+#
+# FEATURES:
+#   - Fish health analysis from camera snapshots (vision model)
+#   - Natural language queries about tank status
+#   - Water quality prediction and recommendations
+#   - Weekly/monthly report generation with insights
+#   - Maintenance reminder optimization based on trends
+#   - Fish behavior analysis from images
+#
+# REQUIRES:
+#   - Extended Text integration installed (HACS)
+#   - Google AI API key (free tier: 15 requests/min, 1M tokens/day)
+#   - Frigate camera system (for snapshots)
+#   - fish_tank_sensors.yaml (for water quality data)
+#   - fish_tank_camera.yaml (for camera entities)
+#
+# INSTALL:
+#   1. Install Extended Text via HACS: search "Extended OpenAI Conversation"
+#      (supports Gemini despite the name)
+#   2. Get Gemini API key from https://aistudio.google.com/app/apikey
+#   3. Add to configuration.yaml:
+#        extended_openai_conversation:
+#          - name: Gemini Fish Tank
+#            api_key: YOUR_GEMINI_API_KEY_HERE
+#            api_base: https://generativelanguage.googleapis.com/v1beta
+#            model: gemini-2.0-flash-exp
+#            vision_model: gemini-2.0-flash-exp
+#   4. Drop this file in: config/packages/fish_tank_gemini.yaml
+#   5. Restart Home Assistant
+###############################################################################
+
+# ── HELPERS ───────────────────────────────────────────────────────────────────
+input_boolean:
+  gemini_fish_health_analysis_enabled:
+    name: "Gemini Fish Health Analysis"
+    icon: mdi:fish
+    initial: true
+
+  gemini_daily_summary_enabled:
+    name: "Gemini Daily Summary"
+    icon: mdi:file-document
+    initial: true
+
+  gemini_water_predictions_enabled:
+    name: "Gemini Water Quality Predictions"
+    icon: mdi:water-alert
+    initial: true
+
+input_datetime:
+  gemini_last_health_check:
+    name: "Gemini Last Health Check"
+    has_date: true
+    has_time: true
+    icon: mdi:clock-check
+
+  gemini_last_daily_summary:
+    name: "Gemini Last Daily Summary"
+    has_date: true
+    has_time: true
+    icon: mdi:calendar-check
+
+input_text:
+  gemini_last_health_analysis:
+    name: "Gemini Last Health Analysis"
+    max: 1000
+    icon: mdi:text-box
+    initial: "No analysis yet"
+
+  gemini_last_daily_summary_text:
+    name: "Gemini Last Daily Summary Text"
+    max: 2000
+    icon: mdi:file-document-outline
+    initial: "No summary generated yet"
+
+  gemini_water_prediction:
+    name: "Gemini Water Quality Prediction"
+    max: 1000
+    icon: mdi:crystal-ball
+    initial: "No prediction available"
+
+input_number:
+  gemini_health_check_interval:
+    name: "Gemini Health Check Interval"
+    min: 1
+    max: 168
+    step: 1
+    initial: 12
+    unit_of_measurement: "hours"
+    icon: mdi:timer
+    mode: box
+
+# ── TEMPLATE SENSORS ──────────────────────────────────────────────────────────
+template:
+
+  - sensor:
+
+      # ── TANK STATE SUMMARY FOR GEMINI ────────────────────────────────────
+      # Condensed text summary of all key sensors for Gemini prompts
+      - name: gemini_tank_state_summary
+        unique_id: gemini_tank_state_summary
+        icon: mdi:information
+        state: "OK"
+        attributes:
+          temperature: "{{ states('sensor.fish_tank_temperature') }}°C"
+          ph: "{{ states('sensor.fish_tank_ph') }}"
+          ammonia: "{{ states('sensor.fish_tank_ammonia') }} ppm"
+          nitrite: "{{ states('sensor.fish_tank_nitrite') }} ppm"
+          nitrate: "{{ states('sensor.fish_tank_nitrate') }} ppm"
+          dissolved_oxygen: "{{ states('sensor.fish_tank_dissolved_oxygen') }} mg/L"
+          fish_count: "{{ states('sensor.fish_tank_bird_count') }}"
+          fish_visibility: "{{ states('sensor.fish_tank_fish_visibility') }}%"
+          activity_score: "{{ states('sensor.fish_tank_activity_score') }}"
+          last_feeding: "{{ relative_time(states.input_datetime.fish_tank_last_feeding.last_changed) }} ago"
+          last_water_change: "{{ relative_time(states.input_datetime.fish_tank_last_water_change.last_changed) }} ago"
+          tank_age_days: "{{ states('sensor.fish_tank_tank_age_days') }}"
+          health_status: "{{ states('sensor.fish_tank_health_status') }}"
+          ato_reservoir_level: "{{ states('sensor.ato_reservoir_level_percent') }}%"
+          full_summary: >
+            Tank: {{ states('sensor.fish_tank_temperature') }}°C, pH {{ states('sensor.fish_tank_ph') }}.
+            NH3: {{ states('sensor.fish_tank_ammonia') }}ppm, NO2: {{ states('sensor.fish_tank_nitrite') }}ppm, 
+            NO3: {{ states('sensor.fish_tank_nitrate') }}ppm, O2: {{ states('sensor.fish_tank_dissolved_oxygen') }}mg/L.
+            Fish visible: {{ states('sensor.fish_tank_fish_visibility') }}%, activity: {{ states('sensor.fish_tank_activity_score') }}.
+            Last fed {{ relative_time(states.input_datetime.fish_tank_last_feeding.last_changed) }} ago.
+            Water change {{ relative_time(states.input_datetime.fish_tank_last_water_change.last_changed) }} ago.
+            Tank age: {{ states('sensor.fish_tank_tank_age_days') }} days.
+            Status: {{ states('sensor.fish_tank_health_status') }}.
+
+      # ── GEMINI ANALYSIS STATUS ───────────────────────────────────────────
+      - name: gemini_analysis_status
+        unique_id: gemini_analysis_status
+        icon: mdi:brain
+        state: >
+          {% set enabled = is_state('input_boolean.gemini_fish_health_analysis_enabled', 'on') %}
+          {% set last_check = as_timestamp(states('input_datetime.gemini_last_health_check'), 0) %}
+          {% set interval_hours = states('input_number.gemini_health_check_interval') | float(12) %}
+          {% set hours_ago = ((now().timestamp() - last_check) / 3600) | round(1) %}
+          {% if not enabled %}Disabled
+          {% elif last_check < 86400 %}Never run
+          {% elif hours_ago >= interval_hours %}Due ({{ hours_ago }}h ago)
+          {% else %}Next in {{ (interval_hours - hours_ago) | round(1) }}h
+          {% endif %}
+        attributes:
+          last_check: >
+            {% set ts = as_timestamp(states('input_datetime.gemini_last_health_check'), 0) %}
+            {{ as_local(as_datetime(ts)).strftime('%H:%M on %d %b') if ts > 86400 else 'Never' }}
+          hours_since_check: >
+            {% set ts = as_timestamp(states('input_datetime.gemini_last_health_check'), 0) %}
+            {{ ((now().timestamp() - ts) / 3600) | round(1) if ts > 86400 else 999 }}
+
+  - binary_sensor:
+
+      # ── GEMINI HEALTH CHECK DUE ───────────────────────────────────────────
+      - name: gemini_health_check_due
+        unique_id: gemini_health_check_due
+        device_class: update
+        icon: mdi:camera-timer
+        state: >
+          {% set enabled = is_state('input_boolean.gemini_fish_health_analysis_enabled', 'on') %}
+          {% set last_check = as_timestamp(states('input_datetime.gemini_last_health_check'), 0) %}
+          {% set interval_hours = states('input_number.gemini_health_check_interval') | float(12) %}
+          {% set hours_ago = (now().timestamp() - last_check) / 3600 %}
+          {{ enabled and (last_check < 86400 or hours_ago >= interval_hours) }}
+
+# ── AUTOMATIONS ───────────────────────────────────────────────────────────────
+automation:
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🐟 FISH HEALTH ANALYSIS (VISION MODEL)
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: gemini_auto_fish_health_check
+    alias: "🐟 Gemini: Auto Fish Health Check"
+    description: >
+      Runs fish health analysis on interval using Gemini vision model.
+      Captures tank snapshot and asks Gemini to assess fish health,
+      behavior, and any visible issues.
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.gemini_health_check_due
+        to: "on"
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.gemini_fish_health_analysis_enabled
+        state: "on"
+      # Only run during daylight hours when camera visibility is good
+      - condition: time
+        after: "08:00:00"
+        before: "22:00:00"
+    action:
+      # Capture fresh snapshot
+      - service: script.fish_tank_capture_snapshot
+      # Small delay to ensure snapshot is saved
+      - delay: "00:00:02"
+      # Call Gemini vision API via Extended Text integration
+      - service: extended_openai_conversation.query
+        data:
+          model: gemini-2.0-flash-exp
+          prompt: >
+            You are an expert aquarium consultant analyzing a fish tank camera image.
+            
+            Current tank parameters:
+            {{ state_attr('sensor.gemini_tank_state_summary', 'full_summary') }}
+            
+            Please analyze this tank snapshot and provide:
+            1. Fish health assessment (coloration, fins, swimming behavior)
+            2. Visible signs of stress or disease
+            3. Tank cleanliness (algae, debris, glass clarity)
+            4. Any recommendations for immediate action
+            
+            Be concise but specific. Focus on actionable observations.
+          image_path: /config/www/tank_snapshots/latest.jpg
+        response_variable: gemini_response
+      # Store the analysis
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.gemini_last_health_analysis
+        data:
+          value: >
+            {{ gemini_response.response[:1000] if gemini_response is defined else 'Analysis failed' }}
+      # Update timestamp
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.gemini_last_health_check
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      # Send notification if issues detected
+      - service: persistent_notification.create
+        data:
+          title: "🐟 Gemini Fish Health Analysis"
+          message: "{{ gemini_response.response[:500] if gemini_response is defined else 'Check failed' }}"
+          notification_id: gemini_fish_health
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 📊 DAILY SUMMARY & PREDICTIONS
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: gemini_daily_summary
+    alias: "📊 Gemini: Generate Daily Summary"
+    description: >
+      Generates AI summary of tank status, trends, and predictions.
+      Runs every evening with full sensor context and historical data.
+    mode: single
+    trigger:
+      - platform: time
+        at: "21:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.gemini_daily_summary_enabled
+        state: "on"
+    action:
+      - service: extended_openai_conversation.query
+        data:
+          model: gemini-2.0-flash-exp
+          prompt: >
+            You are an expert aquarium consultant. Generate a concise daily summary.
+            
+            **Current Status:**
+            {{ state_attr('sensor.gemini_tank_state_summary', 'full_summary') }}
+            
+            **Today's Activity:**
+            - Daily top-off: {{ states('sensor.ato_daily_topoff_ml') }}ml
+            - Camera activity score: {{ states('sensor.fish_tank_activity_score') }}
+            - Fish visibility: {{ states('sensor.fish_tank_fish_visibility') }}%
+            
+            **Provide:**
+            1. Tank health summary (2 sentences)
+            2. Any parameter trends requiring attention
+            3. Recommended actions for tomorrow
+            4. Water change prediction (days until needed based on NO3 trend)
+            
+            Be concise and actionable. Max 300 words.
+        response_variable: gemini_summary
+      # Store summary
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.gemini_last_daily_summary_text
+        data:
+          value: >
+            {{ gemini_summary.response[:2000] if gemini_summary is defined else 'Summary failed' }}
+      # Update timestamp
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.gemini_last_daily_summary
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      # Send notification
+      - service: persistent_notification.create
+        data:
+          title: "📊 Gemini Daily Tank Summary"
+          message: "{{ gemini_summary.response[:500] if gemini_summary is defined else 'Check failed' }}"
+          notification_id: gemini_daily_summary
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 🔮 WATER QUALITY PREDICTIONS
+  # ══════════════════════════════════════════════════════════════════════════
+
+  - id: gemini_water_quality_prediction
+    alias: "🔮 Gemini: Water Quality Prediction"
+    description: >
+      Uses Gemini to predict when water changes will be needed based on
+      current parameters and historical trends.
+    mode: single
+    trigger:
+      # Run prediction after every water test or water change
+      - platform: state
+        entity_id: input_datetime.fish_tank_last_water_test
+      - platform: state
+        entity_id: input_datetime.fish_tank_last_water_change
+      # Also run daily at noon
+      - platform: time
+        at: "12:00:00"
+    condition:
+      - condition: state
+        entity_id: input_boolean.gemini_water_predictions_enabled
+        state: "on"
+    action:
+      - service: extended_openai_conversation.query
+        data:
+          model: gemini-2.0-flash-exp
+          prompt: >
+            You are an aquarium water chemistry expert. Predict when the next water change is needed.
+            
+            **Current Parameters:**
+            - Ammonia: {{ states('sensor.fish_tank_ammonia') }}ppm (safe: <0.25)
+            - Nitrite: {{ states('sensor.fish_tank_nitrite') }}ppm (safe: <0.25)
+            - Nitrate: {{ states('sensor.fish_tank_nitrate') }}ppm (safe: <40)
+            - pH: {{ states('sensor.fish_tank_ph') }} (target: 6.5-7.5)
+            - Dissolved O2: {{ states('sensor.fish_tank_dissolved_oxygen') }}mg/L (min: 6)
+            
+            **Historical Context:**
+            - Tank age: {{ states('sensor.fish_tank_tank_age_days') }} days
+            - Last water change: {{ relative_time(states.input_datetime.fish_tank_last_water_change.last_changed) }} ago
+            - Water change interval setting: {{ states('input_number.fish_tank_water_change_interval') }} days
+            
+            **Provide:**
+            1. Estimated days until water change needed
+            2. Which parameter will likely trigger it
+            3. Current trend (improving/stable/degrading)
+            4. Any immediate concerns
+            
+            Be specific and quantitative. Max 200 words.
+        response_variable: gemini_prediction
+      # Store prediction
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.gemini_water_prediction
+        data:
+          value: >
+            {{ gemini_prediction.response[:1000] if gemini_prediction is defined else 'Prediction failed' }}
+
+# ── SCRIPTS ───────────────────────────────────────────────────────────────────
+script:
+
+  gemini_ask_about_tank:
+    alias: "🤖 Gemini: Ask About Tank"
+    description: >
+      General-purpose script to ask Gemini any question about the tank.
+      Provides full sensor context to Gemini for accurate answers.
+    icon: mdi:chat
+    mode: queued
+    fields:
+      question:
+        description: "Your question about the tank"
+        example: "Why are my fish hiding?"
+        required: true
+        selector:
+          text:
+    sequence:
+      - service: extended_openai_conversation.query
+        data:
+          model: gemini-2.0-flash-exp
+          prompt: >
+            You are an expert aquarium consultant. Answer this question about the user's tank.
+            
+            **User Question:** {{ question }}
+            
+            **Tank Status:**
+            {{ state_attr('sensor.gemini_tank_state_summary', 'full_summary') }}
+            
+            **Recent Health Analysis:**
+            {{ states('input_text.gemini_last_health_analysis') }}
+            
+            Provide a helpful, specific answer based on the tank's actual data.
+            If the question is about fish health, reference the latest vision analysis.
+            Be concise but thorough.
+        response_variable: gemini_answer
+      - service: persistent_notification.create
+        data:
+          title: "🤖 Gemini Answer"
+          message: "{{ gemini_answer.response if gemini_answer is defined else 'Query failed' }}"
+          notification_id: gemini_question_answer
+
+  gemini_analyze_snapshot:
+    alias: "📸 Gemini: Analyze Current Snapshot"
+    description: "Manually trigger Gemini vision analysis on latest snapshot"
+    icon: mdi:camera-iris
+    sequence:
+      # Capture fresh snapshot
+      - service: script.fish_tank_capture_snapshot
+      - delay: "00:00:02"
+      # Analyze with Gemini vision
+      - service: extended_openai_conversation.query
+        data:
+          model: gemini-2.0-flash-exp
+          prompt: >
+            Analyze this aquarium image in detail.
+            
+            Current parameters: {{ state_attr('sensor.gemini_tank_state_summary', 'full_summary') }}
+            
+            Report on:
+            1. Fish health and behavior visible in image
+            2. Tank cleanliness and maintenance needs
+            3. Equipment visible and functioning (filter, heater, etc)
+            4. Any anomalies or concerns
+          image_path: /config/www/tank_snapshots/latest.jpg
+        response_variable: gemini_analysis
+      # Store and notify
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.gemini_last_health_analysis
+        data:
+          value: "{{ gemini_analysis.response[:1000] if gemini_analysis is defined else 'Failed' }}"
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.gemini_last_health_check
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - service: persistent_notification.create
+        data:
+          title: "📸 Gemini Snapshot Analysis"
+          message: "{{ gemini_analysis.response[:500] if gemini_analysis is defined else 'Analysis failed' }}"
+          notification_id: gemini_snapshot_analysis
+
+  gemini_generate_weekly_report:
+    alias: "📋 Gemini: Generate Weekly Report"
+    description: "Comprehensive weekly tank report with trends and insights"
+    icon: mdi:file-chart
+    sequence:
+      - service: extended_openai_conversation.query
+        data:
+          model: gemini-2.0-flash-exp
+          prompt: >
+            Generate a comprehensive weekly aquarium report.
+            
+            **Current Status:**
+            {{ state_attr('sensor.gemini_tank_state_summary', 'full_summary') }}
+            
+            **This Week's Activity:**
+            - ATO top-offs: {{ states('input_number.ato_cycles_this_period') }} cycles
+            - Total water added: {{ states('input_number.ato_ml_used_this_period') }}ml
+            - Average daily evaporation: {{ (states('input_number.ato_ml_used_this_period') | float(0) / 7) | round(0) }}ml
+            
+            **Maintenance:**
+            - Days since water change: {{ states('sensor.fish_tank_days_since_water_change') }}
+            - Days since filter clean: {{ states('sensor.fish_tank_days_since_filter_clean') }}
+            
+            **Latest AI Analysis:**
+            {{ states('input_text.gemini_last_health_analysis') }}
+            
+            **Provide:**
+            1. Executive summary (2-3 sentences)
+            2. Parameter trends over the week
+            3. Fish health and behavior observations
+            4. Maintenance recommendations for next week
+            5. Equipment performance notes
+            6. Any concerning patterns
+            
+            Format as a structured report. Max 600 words.
+        response_variable: gemini_report
+      - service: persistent_notification.create
+        data:
+          title: "📋 Gemini Weekly Report"
+          message: "{{ gemini_report.response[:1000] if gemini_report is defined else 'Report generation failed' }}"
+          notification_id: gemini_weekly_report
