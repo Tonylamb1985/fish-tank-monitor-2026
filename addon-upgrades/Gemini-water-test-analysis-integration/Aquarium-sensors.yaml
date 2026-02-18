@@ -1,0 +1,316 @@
+###############################################################
+# AQUARIUM WATER TEST — SENSORS & HELPERS
+# File: config/packages/aquarium_sensors.yaml
+#
+# SETUP: In configuration.yaml add:
+#   homeassistant:
+#     packages: !include_dir_named packages
+###############################################################
+
+# ─────────────────────────────────────────────────────────────
+# INPUT HELPERS
+# ─────────────────────────────────────────────────────────────
+input_text:
+  aquarium_last_analysis_raw:
+    name: "Aquarium Analysis Raw JSON"
+    max: 1024
+    initial: ""
+
+  aquarium_last_image_path:
+    name: "Aquarium Last Image Path"
+    max: 255
+    initial: "/media/aquarium/water_test.jpg"
+
+  aquarium_ai_notes:
+    name: "Aquarium AI Advice"
+    max: 1024
+    initial: "No test run yet. Upload a photo to get started."
+
+input_datetime:
+  aquarium_last_test_time:
+    name: "Aquarium Last Test Time"
+    has_date: true
+    has_time: true
+
+input_select:
+  aquarium_test_kit:
+    name: "Aquarium Test Kit"
+    options:
+      - "API 5-in-1 Strip"
+      - "API Liquid Test Kit"
+      - "NT Labs Liquid Test Kit"
+    initial: "API 5-in-1 Strip"
+    icon: mdi:test-tube
+
+input_boolean:
+  aquarium_analysis_running:
+    name: "Aquarium Analysis Running"
+    initial: false
+    icon: mdi:loading
+
+# ─────────────────────────────────────────────────────────────
+# TEMPLATE SENSORS
+# Parses JSON stored in input_text.aquarium_last_analysis_raw
+#
+# JSON format the AI is prompted to return:
+# {
+#   "ph": "7.2",
+#   "nitrite": "0",
+#   "nitrate": "20",
+#   "gh": "120",
+#   "kh": "80",
+#   "ammonia": "0",              <- "N/A" for 5-in-1 strip
+#   "seachem_badge": "safe",     <- safe|alert|alarm|toxic|not_present
+#   "status": "good",            <- good | warning | danger
+#   "notes": "Advice text here."
+# }
+# ─────────────────────────────────────────────────────────────
+template:
+  - sensor:
+      - name: "Aquarium pH"
+        unique_id: aquarium_sensor_ph
+        state: >
+          {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+          {% if raw not in ['', 'unknown', 'unavailable'] %}
+            {% set parsed = raw | from_json %}
+            {{ parsed.get('ph', 'N/A') }}
+          {% else %}N/A{% endif %}
+        unit_of_measurement: "pH"
+        icon: mdi:ph
+        attributes:
+          safe_min: 6.8
+          safe_max: 7.6
+          alert: >
+            {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+            {% if raw not in ['', 'unknown', 'unavailable'] %}
+              {% set val = (raw | from_json).get('ph', 'N/A') %}
+              {% if val not in ['N/A', 'unreadable', 'unknown'] %}
+                {% set v = val | float(0) %}
+                {% if v < 6.0 or v > 8.0 %}danger
+                {% elif v < 6.8 or v > 7.6 %}warning
+                {% else %}good{% endif %}
+              {% else %}unknown{% endif %}
+            {% else %}unknown{% endif %}
+
+      - name: "Aquarium Nitrite"
+        unique_id: aquarium_sensor_nitrite
+        state: >
+          {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+          {% if raw not in ['', 'unknown', 'unavailable'] %}
+            {% set parsed = raw | from_json %}
+            {{ parsed.get('nitrite', 'N/A') }}
+          {% else %}N/A{% endif %}
+        unit_of_measurement: "ppm"
+        icon: mdi:water-alert-outline
+        attributes:
+          safe_max: 0
+          alert: >
+            {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+            {% if raw not in ['', 'unknown', 'unavailable'] %}
+              {% set val = (raw | from_json).get('nitrite', 'N/A') %}
+              {% if val not in ['N/A', 'unreadable', 'unknown'] %}
+                {% set v = val | float(0) %}
+                {% if v >= 0.5 %}danger
+                {% elif v > 0 %}warning
+                {% else %}good{% endif %}
+              {% else %}unknown{% endif %}
+            {% else %}unknown{% endif %}
+
+      - name: "Aquarium Nitrate"
+        unique_id: aquarium_sensor_nitrate
+        state: >
+          {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+          {% if raw not in ['', 'unknown', 'unavailable'] %}
+            {% set parsed = raw | from_json %}
+            {{ parsed.get('nitrate', 'N/A') }}
+          {% else %}N/A{% endif %}
+        unit_of_measurement: "ppm"
+        icon: mdi:water-check-outline
+        attributes:
+          safe_max: 20
+          alert: >
+            {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+            {% if raw not in ['', 'unknown', 'unavailable'] %}
+              {% set val = (raw | from_json).get('nitrate', 'N/A') %}
+              {% if val not in ['N/A', 'unreadable', 'unknown'] %}
+                {% set v = val | float(0) %}
+                {% if v >= 40 %}danger
+                {% elif v >= 20 %}warning
+                {% else %}good{% endif %}
+              {% else %}unknown{% endif %}
+            {% else %}unknown{% endif %}
+
+      - name: "Aquarium GH"
+        unique_id: aquarium_sensor_gh
+        state: >
+          {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+          {% if raw not in ['', 'unknown', 'unavailable'] %}
+            {% set parsed = raw | from_json %}
+            {{ parsed.get('gh', 'N/A') }}
+          {% else %}N/A{% endif %}
+        unit_of_measurement: "ppm"
+        icon: mdi:water-opacity
+        attributes:
+          safe_min: 70
+          safe_max: 150
+          alert: >
+            {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+            {% if raw not in ['', 'unknown', 'unavailable'] %}
+              {% set val = (raw | from_json).get('gh', 'N/A') %}
+              {% if val not in ['N/A', 'unreadable', 'unknown'] %}
+                {% set v = val | float(0) %}
+                {% if v < 30 or v > 300 %}danger
+                {% elif v < 70 or v > 150 %}warning
+                {% else %}good{% endif %}
+              {% else %}unknown{% endif %}
+            {% else %}unknown{% endif %}
+
+      - name: "Aquarium KH"
+        unique_id: aquarium_sensor_kh
+        state: >
+          {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+          {% if raw not in ['', 'unknown', 'unavailable'] %}
+            {% set parsed = raw | from_json %}
+            {{ parsed.get('kh', 'N/A') }}
+          {% else %}N/A{% endif %}
+        unit_of_measurement: "ppm"
+        icon: mdi:water-minus-outline
+        attributes:
+          safe_min: 70
+          safe_max: 140
+          alert: >
+            {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+            {% if raw not in ['', 'unknown', 'unavailable'] %}
+              {% set val = (raw | from_json).get('kh', 'N/A') %}
+              {% if val not in ['N/A', 'unreadable', 'unknown'] %}
+                {% set v = val | float(0) %}
+                {% if v < 40 %}danger
+                {% elif v < 70 or v > 140 %}warning
+                {% else %}good{% endif %}
+              {% else %}unknown{% endif %}
+            {% else %}unknown{% endif %}
+
+      # ── SEACHEM AMMONIA ALERT BADGE ──────────────────────────
+      # Reads the physical Seachem Ammonia Alert badge colour from the photo.
+      # Four official Seachem states (colour → free NH3 level):
+      #   safe   = yellow        = 0 ppm      (no free ammonia)
+      #   alert  = green         = ~0.05 ppm  (tolerated for 3-5 days)
+      #   alarm  = blue-green    = ~0.2 ppm   (tolerated for 1-3 days)
+      #   toxic  = grey/blue     = ~0.5 ppm   (rapidly harmful)
+      # If no Seachem badge is visible in the photo, AI returns "not_present"
+      - name: "Aquarium Seachem Badge"
+        unique_id: aquarium_sensor_seachem_badge
+        state: >
+          {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+          {% if raw not in ['', 'unknown', 'unavailable'] %}
+            {% set val = (raw | from_json).get('seachem_badge', 'not_present') %}
+            {% if val == 'safe' %}Safe
+            {% elif val == 'alert' %}Alert
+            {% elif val == 'alarm' %}Alarm
+            {% elif val == 'toxic' %}Toxic
+            {% elif val == 'not_present' %}Not Present
+            {% else %}Unreadable{% endif %}
+          {% else %}No Test{% endif %}
+        icon: >
+          {% set s = states('sensor.aquarium_seachem_badge') | lower %}
+          {% if s == 'safe' %}mdi:shield-check
+          {% elif s == 'alert' %}mdi:shield-alert
+          {% elif s == 'alarm' %}mdi:shield-off
+          {% elif s == 'toxic' %}mdi:biohazard
+          {% else %}mdi:shield-outline{% endif %}
+        attributes:
+          free_ammonia_ppm: >
+            {% set s = states('sensor.aquarium_seachem_badge') | lower %}
+            {% if s == 'safe' %}0
+            {% elif s == 'alert' %}0.05
+            {% elif s == 'alarm' %}0.2
+            {% elif s == 'toxic' %}0.5
+            {% else %}unknown{% endif %}
+          urgency: >
+            {% set s = states('sensor.aquarium_seachem_badge') | lower %}
+            {% if s == 'safe' %}None
+            {% elif s == 'alert' %}Monitor closely — 3-5 days tolerance
+            {% elif s == 'alarm' %}Action needed — 1-3 days tolerance
+            {% elif s == 'toxic' %}IMMEDIATE action required — rapidly harmful
+            {% else %}Unknown{% endif %}
+          seachem_colour: >
+            {% set s = states('sensor.aquarium_seachem_badge') | lower %}
+            {% if s == 'safe' %}Yellow
+            {% elif s == 'alert' %}Green
+            {% elif s == 'alarm' %}Blue-green
+            {% elif s == 'toxic' %}Grey/Blue
+            {% else %}Unknown{% endif %}
+
+      # Ammonia — N/A for API 5-in-1 strip; populated by liquid kits
+      - name: "Aquarium Ammonia"
+        unique_id: aquarium_sensor_ammonia
+        state: >
+          {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+          {% if raw not in ['', 'unknown', 'unavailable'] %}
+            {% set parsed = raw | from_json %}
+            {{ parsed.get('ammonia', 'N/A') }}
+          {% else %}N/A{% endif %}
+        unit_of_measurement: "ppm"
+        icon: mdi:skull-crossbones-outline
+        attributes:
+          safe_max: 0
+          alert: >
+            {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+            {% if raw not in ['', 'unknown', 'unavailable'] %}
+              {% set val = (raw | from_json).get('ammonia', 'N/A') %}
+              {% if val not in ['N/A', 'unreadable', 'unknown'] %}
+                {% set v = val | float(0) %}
+                {% if v >= 0.5 %}danger
+                {% elif v > 0 %}warning
+                {% else %}good{% endif %}
+              {% else %}na{% endif %}
+            {% else %}unknown{% endif %}
+
+      # Overall status from AI
+      - name: "Aquarium Water Status"
+        unique_id: aquarium_sensor_status
+        state: >
+          {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+          {% if raw not in ['', 'unknown', 'unavailable'] %}
+            {% set parsed = raw | from_json %}
+            {{ parsed.get('status', 'unknown') | title }}
+          {% else %}No Test Run{% endif %}
+        icon: >
+          {% set s = states('sensor.aquarium_water_status') | lower %}
+          {% if s == 'good' %}mdi:check-circle
+          {% elif s == 'warning' %}mdi:alert-circle
+          {% elif s == 'danger' %}mdi:close-circle
+          {% else %}mdi:help-circle{% endif %}
+
+      # Ammonia alert badge — used as a dedicated badge entity
+      - name: "Aquarium Ammonia Alert"
+        unique_id: aquarium_sensor_ammonia_alert
+        state: >
+          {% set raw = states('input_text.aquarium_last_analysis_raw') %}
+          {% if raw not in ['', 'unknown', 'unavailable'] %}
+            {% set val = (raw | from_json).get('ammonia', 'N/A') %}
+            {% if val == 'N/A' %}Not Tested
+            {% elif val in ['unreadable', 'unknown'] %}Unreadable
+            {% else %}
+              {% set v = val | float(0) %}
+              {% if v >= 0.5 %}DANGER
+              {% elif v > 0 %}WARNING
+              {% else %}Safe{% endif %}
+            {% endif %}
+          {% else %}No Test{% endif %}
+        icon: >
+          {% set s = states('sensor.aquarium_ammonia_alert') %}
+          {% if s == 'DANGER' %}mdi:skull-crossbones
+          {% elif s == 'WARNING' %}mdi:alert-rhombus
+          {% elif s == 'Safe' %}mdi:check-circle
+          {% else %}mdi:minus-circle{% endif %}
+
+      # Formatted last test time
+      - name: "Aquarium Last Test"
+        unique_id: aquarium_sensor_last_test
+        state: >
+          {% set dt = states('input_datetime.aquarium_last_test_time') %}
+          {% if dt not in ['unknown', 'unavailable', ''] %}
+            {{ as_timestamp(dt) | timestamp_custom('%d %b %Y %H:%M') }}
+          {% else %}Never{% endif %}
+        icon: mdi:clock-check-outline
