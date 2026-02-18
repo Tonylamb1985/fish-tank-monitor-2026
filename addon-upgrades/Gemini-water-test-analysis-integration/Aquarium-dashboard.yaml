@@ -1,0 +1,548 @@
+###############################################################
+# AQUARIUM WATER TEST — DASHBOARD TAB
+# Add as a new View in your existing dashboard
+#
+# REQUIREMENTS (install via HACS):
+#   - Browser Mod (thomasloven/hass-browser_mod)
+#   - card-mod (thomasloven/lovelace-card-mod)     [for coloured borders]
+#   - mini-graph-card (kalkih/lovelace-mini-graph-card) [for history graphs]
+#
+# HOW TO ADD THIS TAB:
+#   1. Open your dashboard → Edit → Add View
+#   2. Switch to YAML editor
+#   3. Paste the contents below
+###############################################################
+
+title: 🐟 Aquarium
+path: aquarium
+icon: mdi:fish
+badges:
+  # ── SEACHEM AMMONIA BADGE ───────────────────────────────────
+  # Reflects the physical Seachem Ammonia Alert card colour
+  - type: entity
+    entity: sensor.aquarium_seachem_badge
+    name: "Seachem"
+    color: >
+      {% set s = states('sensor.aquarium_seachem_badge') | lower %}
+      {% if s == 'safe' %}green
+      {% elif s == 'alert' %}yellow
+      {% elif s == 'alarm' %}orange
+      {% elif s == 'toxic' %}red
+      {% else %}grey{% endif %}
+
+  # ── AMMONIA ALERT BADGE ─────────────────────────────────────
+  # Floats above the dashboard. Red/amber/green based on ammonia.
+  - type: entity
+    entity: sensor.aquarium_ammonia_alert
+    name: "NH3"
+    color: >
+      {% set s = states('sensor.aquarium_ammonia_alert') %}
+      {% if s == 'DANGER' %}red
+      {% elif s == 'WARNING' %}orange
+      {% elif s == 'Safe' %}green
+      {% else %}grey{% endif %}
+
+  # ── WATER STATUS BADGE ──────────────────────────────────────
+  - type: entity
+    entity: sensor.aquarium_water_status
+    name: "Water"
+    color: >
+      {% set s = states('sensor.aquarium_water_status') | lower %}
+      {% if s == 'good' %}green
+      {% elif s == 'warning' %}orange
+      {% elif s == 'danger' %}red
+      {% else %}grey{% endif %}
+
+cards:
+  # ════════════════════════════════════════════════════════════
+  # ROW 1 — STATUS OVERVIEW
+  # ════════════════════════════════════════════════════════════
+  - type: horizontal-stack
+    cards:
+      - type: entity
+        entity: sensor.aquarium_water_status
+        name: "Water Status"
+        card_mod:
+          style: |
+            ha-card {
+              border-left: 6px solid
+                {% if states('sensor.aquarium_water_status') == 'Good' %}#4caf50
+                {% elif states('sensor.aquarium_water_status') == 'Warning' %}#ff9800
+                {% elif states('sensor.aquarium_water_status') == 'Danger' %}#f44336
+                {% else %}#9e9e9e{% endif %};
+            }
+
+      - type: entity
+        entity: sensor.aquarium_last_test
+        name: "Last Tested"
+
+      - type: entity
+        entity: sensor.aquarium_ammonia_alert
+        name: "Ammonia Status"
+        card_mod:
+          style: |
+            ha-card {
+              border-left: 6px solid
+                {% set s = states('sensor.aquarium_ammonia_alert') %}
+                {% if s == 'Safe' %}#4caf50
+                {% elif s == 'WARNING' %}#ff9800
+                {% elif s == 'DANGER' %}#f44336
+                {% elif s == 'Not Tested' %}#9e9e9e
+                {% else %}#9e9e9e{% endif %};
+            }
+
+      - type: entity
+        entity: sensor.aquarium_seachem_badge
+        name: "Seachem Badge"
+        card_mod:
+          style: |
+            ha-card {
+              border-left: 6px solid
+                {% set s = states('sensor.aquarium_seachem_badge') | lower %}
+                {% if s == 'safe' %}#4caf50
+                {% elif s == 'alert' %}#ffeb3b
+                {% elif s == 'alarm' %}#ff9800
+                {% elif s == 'toxic' %}#f44336
+                {% else %}#9e9e9e{% endif %};
+            }
+
+  # ── SEACHEM AMMONIA BADGE DETAIL CARD ─────────────────────
+  # Shows colour, free ammonia level, and urgency guidance
+  - type: markdown
+    content: >
+      ## 🟡 Seachem Ammonia Alert Badge
+
+      | | |
+      |---|---|
+      | **Status** | {{ states('sensor.aquarium_seachem_badge') }} |
+      | **Badge Colour** | {{ state_attr('sensor.aquarium_seachem_badge', 'seachem_colour') }} |
+      | **Free NH₃** | ~{{ state_attr('sensor.aquarium_seachem_badge', 'free_ammonia_ppm') }} ppm |
+      | **Guidance** | {{ state_attr('sensor.aquarium_seachem_badge', 'urgency') }} |
+
+      *Seachem badge reads **free (gaseous) ammonia only** — more toxic than total ammonia.
+      It detects continuously with ~15 min response time. Safe = yellow, Alert = green, Alarm = blue-green, Toxic = grey.*
+    card_mod:
+      style: |
+        ha-card {
+          border-left: 6px solid
+            {% set s = states('sensor.aquarium_seachem_badge') | lower %}
+            {% if s == 'safe' %}#4caf50
+            {% elif s == 'alert' %}#ffeb3b
+            {% elif s == 'alarm' %}#ff9800
+            {% elif s == 'toxic' %}#f44336
+            {% else %}#9e9e9e{% endif %};
+        }
+
+  # ════════════════════════════════════════════════════════════
+  # ROW 2 — UPLOAD & ANALYSE
+  # ════════════════════════════════════════════════════════════
+  - type: vertical-stack
+    cards:
+      - type: markdown
+        content: "## 📸 Upload & Analyse Water Test"
+
+      # Test kit selector
+      - type: entities
+        title: "Test Kit"
+        entities:
+          - entity: input_select.aquarium_test_kit
+            name: "Select your test kit"
+
+      # ── BROWSER MOD UPLOAD BUTTON ──────────────────────────
+      # Tapping this opens a popup where you can type/paste
+      # the image path after uploading via HA media upload.
+      # For phone: use the HA Companion App "Upload media" in the
+      # Media browser, upload to /media/aquarium/ folder,
+      # then enter the path here.
+      - type: button
+        name: "📷 Set Image Path"
+        icon: mdi:image-plus
+        show_name: true
+        show_icon: true
+        tap_action:
+          action: fire-dom-event
+          browser_mod:
+            service: browser_mod.popup
+            data:
+              title: "📷 Enter Image Path"
+              dismissable: true
+              right_button: "✅ Save & Close"
+              right_button_action:
+                service: browser_mod.close_popup
+              content:
+                type: vertical-stack
+                cards:
+                  - type: markdown
+                    content: |
+                      **How to upload from your phone:**
+                      1. In the HA Companion App, go to **Media** → **Upload**
+                      2. Upload your photo to the `aquarium` folder
+                      3. The path will be `/media/aquarium/your_filename.jpg`
+                      4. Type or paste the full path below and tap Save
+
+                  - type: entities
+                    entities:
+                      - entity: input_text.aquarium_last_image_path
+                        name: "Image Path"
+
+                  - type: markdown
+                    content: >
+                      **Current path:**
+                      `{{ states('input_text.aquarium_last_image_path') }}`
+
+      # ── ANALYSE BUTTON ─────────────────────────────────────
+      - type: button
+        name: "🔬 Analyse Test Now"
+        icon: mdi:magnify-scan
+        show_name: true
+        show_icon: true
+        tap_action:
+          action: call-service
+          service: script.aquarium_analyze_water_test
+
+      # ── ANALYSIS RUNNING SPINNER ───────────────────────────
+      - type: conditional
+        conditions:
+          - entity: input_boolean.aquarium_analysis_running
+            state: "on"
+        card:
+          type: markdown
+          content: |
+            ⏳ **Analysing image with Gemini AI...**
+
+            *This usually takes 5–15 seconds.*
+
+      # ── CLEAR RESULTS BUTTON ───────────────────────────────
+      - type: button
+        name: "🗑 Clear Results"
+        icon: mdi:refresh
+        show_name: true
+        show_icon: true
+        tap_action:
+          action: fire-dom-event
+          browser_mod:
+            service: browser_mod.popup
+            data:
+              title: "Clear Results?"
+              content: "This will reset all sensor values. Are you sure?"
+              dismissable: true
+              right_button: "Yes, Clear"
+              left_button: "Cancel"
+              right_button_action:
+                service: script.aquarium_clear_results
+              left_button_action:
+                service: browser_mod.close_popup
+
+  # ════════════════════════════════════════════════════════════
+  # ROW 3 — CURRENT READINGS (with colour-coded alert borders)
+  # ════════════════════════════════════════════════════════════
+  - type: markdown
+    content: "## 💧 Current Water Parameters"
+
+  - type: horizontal-stack
+    cards:
+      - type: entity
+        entity: sensor.aquarium_ph
+        name: "pH"
+        card_mod:
+          style: |
+            ha-card {
+              border-top: 4px solid
+                {% set a = state_attr('sensor.aquarium_ph','alert') %}
+                {% if a == 'good' %}#4caf50
+                {% elif a == 'warning' %}#ff9800
+                {% elif a == 'danger' %}#f44336
+                {% else %}#9e9e9e{% endif %};
+            }
+
+      - type: entity
+        entity: sensor.aquarium_ammonia
+        name: "NH₃ Ammonia"
+        card_mod:
+          style: |
+            ha-card {
+              border-top: 4px solid
+                {% set a = state_attr('sensor.aquarium_ammonia','alert') %}
+                {% if a == 'good' %}#4caf50
+                {% elif a == 'warning' %}#ff9800
+                {% elif a == 'danger' %}#f44336
+                {% elif a == 'na' %}#9e9e9e
+                {% else %}#9e9e9e{% endif %};
+            }
+
+      - type: entity
+        entity: sensor.aquarium_nitrite
+        name: "NO₂ Nitrite"
+        card_mod:
+          style: |
+            ha-card {
+              border-top: 4px solid
+                {% set a = state_attr('sensor.aquarium_nitrite','alert') %}
+                {% if a == 'good' %}#4caf50
+                {% elif a == 'warning' %}#ff9800
+                {% elif a == 'danger' %}#f44336
+                {% else %}#9e9e9e{% endif %};
+            }
+
+  - type: horizontal-stack
+    cards:
+      - type: entity
+        entity: sensor.aquarium_nitrate
+        name: "NO₃ Nitrate"
+        card_mod:
+          style: |
+            ha-card {
+              border-top: 4px solid
+                {% set a = state_attr('sensor.aquarium_nitrate','alert') %}
+                {% if a == 'good' %}#4caf50
+                {% elif a == 'warning' %}#ff9800
+                {% elif a == 'danger' %}#f44336
+                {% else %}#9e9e9e{% endif %};
+            }
+
+      - type: entity
+        entity: sensor.aquarium_gh
+        name: "GH Hardness"
+        card_mod:
+          style: |
+            ha-card {
+              border-top: 4px solid
+                {% set a = state_attr('sensor.aquarium_gh','alert') %}
+                {% if a == 'good' %}#4caf50
+                {% elif a == 'warning' %}#ff9800
+                {% elif a == 'danger' %}#f44336
+                {% else %}#9e9e9e{% endif %};
+            }
+
+      - type: entity
+        entity: sensor.aquarium_kh
+        name: "KH Alkalinity"
+        card_mod:
+          style: |
+            ha-card {
+              border-top: 4px solid
+                {% set a = state_attr('sensor.aquarium_kh','alert') %}
+                {% if a == 'good' %}#4caf50
+                {% elif a == 'warning' %}#ff9800
+                {% elif a == 'danger' %}#f44336
+                {% else %}#9e9e9e{% endif %};
+            }
+
+  # ════════════════════════════════════════════════════════════
+  # ROW 4 — AI ADVICE
+  # ════════════════════════════════════════════════════════════
+  - type: markdown
+    content: >
+      ## 🤖 AI Advice
+
+      {{ states('input_text.aquarium_ai_notes') }}
+    card_mod:
+      style: |
+        ha-card {
+          border-left: 4px solid
+            {% set s = states('sensor.aquarium_water_status') | lower %}
+            {% if s == 'good' %}#4caf50
+            {% elif s == 'warning' %}#ff9800
+            {% elif s == 'danger' %}#f44336
+            {% else %}#9e9e9e{% endif %};
+        }
+
+  # ════════════════════════════════════════════════════════════
+  # ROW 5 — HISTORY GRAPHS
+  # Requires mini-graph-card from HACS
+  # ════════════════════════════════════════════════════════════
+  - type: markdown
+    content: "## 📈 Water Parameter History"
+
+  # pH & Ammonia side by side
+  - type: horizontal-stack
+    cards:
+      - type: custom:mini-graph-card
+        name: "pH History"
+        icon: mdi:ph
+        entities:
+          - entity: sensor.aquarium_ph
+            name: pH
+            color: "#2196f3"
+        hours_to_show: 336
+        points_per_hour: 0.05
+        line_width: 2
+        show:
+          labels: true
+          points: true
+          legend: false
+          state: true
+        lower_bound: 6.0
+        upper_bound: 8.5
+        color_thresholds:
+          - value: 6.0
+            color: "#f44336"
+          - value: 6.8
+            color: "#ff9800"
+          - value: 7.6
+            color: "#4caf50"
+          - value: 8.0
+            color: "#ff9800"
+          - value: 8.5
+            color: "#f44336"
+
+      - type: custom:mini-graph-card
+        name: "Ammonia History"
+        icon: mdi:skull-crossbones-outline
+        entities:
+          - entity: sensor.aquarium_ammonia
+            name: NH₃
+            color: "#9c27b0"
+        hours_to_show: 336
+        points_per_hour: 0.05
+        line_width: 2
+        show:
+          labels: true
+          points: true
+          legend: false
+          state: true
+        lower_bound: 0
+        upper_bound: 4
+        color_thresholds:
+          - value: 0
+            color: "#4caf50"
+          - value: 0.01
+            color: "#ff9800"
+          - value: 0.5
+            color: "#f44336"
+
+  # Nitrite & Nitrate side by side
+  - type: horizontal-stack
+    cards:
+      - type: custom:mini-graph-card
+        name: "Nitrite History"
+        icon: mdi:water-alert-outline
+        entities:
+          - entity: sensor.aquarium_nitrite
+            name: NO₂
+            color: "#ff5722"
+        hours_to_show: 336
+        points_per_hour: 0.05
+        line_width: 2
+        show:
+          labels: true
+          points: true
+          legend: false
+          state: true
+        lower_bound: 0
+        upper_bound: 5
+        color_thresholds:
+          - value: 0
+            color: "#4caf50"
+          - value: 0.01
+            color: "#ff9800"
+          - value: 0.5
+            color: "#f44336"
+
+      - type: custom:mini-graph-card
+        name: "Nitrate History"
+        icon: mdi:water-check-outline
+        entities:
+          - entity: sensor.aquarium_nitrate
+            name: NO₃
+            color: "#ff9800"
+        hours_to_show: 336
+        points_per_hour: 0.05
+        line_width: 2
+        show:
+          labels: true
+          points: true
+          legend: false
+          state: true
+        lower_bound: 0
+        upper_bound: 160
+        color_thresholds:
+          - value: 0
+            color: "#4caf50"
+          - value: 20
+            color: "#ff9800"
+          - value: 40
+            color: "#f44336"
+
+  # GH & KH side by side
+  - type: horizontal-stack
+    cards:
+      - type: custom:mini-graph-card
+        name: "GH History"
+        icon: mdi:water-opacity
+        entities:
+          - entity: sensor.aquarium_gh
+            name: GH
+            color: "#00bcd4"
+        hours_to_show: 336
+        points_per_hour: 0.05
+        line_width: 2
+        show:
+          labels: true
+          points: true
+          legend: false
+          state: true
+        lower_bound: 0
+        upper_bound: 300
+        color_thresholds:
+          - value: 0
+            color: "#f44336"
+          - value: 70
+            color: "#4caf50"
+          - value: 150
+            color: "#ff9800"
+          - value: 300
+            color: "#f44336"
+
+      - type: custom:mini-graph-card
+        name: "KH History"
+        icon: mdi:water-minus-outline
+        entities:
+          - entity: sensor.aquarium_kh
+            name: KH
+            color: "#009688"
+        hours_to_show: 336
+        points_per_hour: 0.05
+        line_width: 2
+        show:
+          labels: true
+          points: true
+          legend: false
+          state: true
+        lower_bound: 0
+        upper_bound: 240
+        color_thresholds:
+          - value: 0
+            color: "#f44336"
+          - value: 70
+            color: "#4caf50"
+          - value: 140
+            color: "#ff9800"
+
+  # ════════════════════════════════════════════════════════════
+  # ROW 6 — REFERENCE TABLE
+  # ════════════════════════════════════════════════════════════
+  - type: markdown
+    content: |
+      ## 📋 Safe Ranges — Freshwater Tropical Fish
+
+      | Parameter | 🟢 Safe | 🟠 Warning | 🔴 Danger |
+      |-----------|---------|-----------|---------|
+      | pH | 6.8 – 7.6 | 6.0–6.8 or 7.6–8.0 | < 6.0 or > 8.0 |
+      | Ammonia NH₃ | 0 ppm | 0.01–0.25 ppm | ≥ 0.5 ppm |
+      | Nitrite NO₂ | 0 ppm | 0.01–0.25 ppm | ≥ 0.5 ppm |
+      | Nitrate NO₃ | < 20 ppm | 20–40 ppm | ≥ 40 ppm |
+      | GH | 70–150 ppm | 30–70 or 150–300 ppm | < 30 or > 300 ppm |
+      | KH | 70–140 ppm | 40–70 or > 140 ppm | < 40 ppm |
+
+      ## 🟡 Seachem Ammonia Alert Badge Colour Guide
+
+      | Colour | Status | Free NH₃ | Tolerance |
+      |--------|--------|----------|-----------|
+      | 🟡 Yellow | Safe | 0 ppm | No action needed |
+      | 🟢 Green | Alert | ~0.05 ppm | Monitor — tolerated 3–5 days |
+      | 🔵 Blue-green | Alarm | ~0.2 ppm | Act within 1–3 days |
+      | ⬜ Grey / Blue-grey | Toxic | ~0.5 ppm | Immediate action required |
+
+      *⚠️ API 5-in-1 Strip does not test Ammonia — use Seachem badge or liquid kit*
+      *Seachem badge detects free (gaseous) NH₃ only — the form most toxic to fish*
