@@ -1,0 +1,174 @@
+###############################################################
+# AQUARIUM WATER TEST — AUTOMATIONS
+# File: config/packages/aquarium_automations.yaml
+#
+# ⚠️  Replace notify.mobile_app_your_phone with your actual
+#     notify service. Find it at:
+#     Settings > Devices & Services > Companion App
+###############################################################
+
+automation:
+  # ── ALERT: Danger water quality ────────────────────────────
+  - id: aquarium_water_danger_alert
+    alias: "Aquarium: DANGER Water Quality Alert"
+    description: "Urgent push notification when status is Danger"
+    trigger:
+      - platform: state
+        entity_id: sensor.aquarium_water_status
+        to: "Danger"
+    action:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: "🚨 AQUARIUM DANGER — Immediate Action Needed"
+          message: >
+            ⚠️ Water Status: DANGER
+            {{ states('input_text.aquarium_ai_notes') }}
+            Tested: {{ states('sensor.aquarium_last_test') }}
+          data:
+            push:
+              sound: "default"
+              interruption-level: critical
+            tag: "aquarium_danger"
+            color: "#f44336"
+    mode: single
+
+  # ── ALERT: Warning water quality ───────────────────────────
+  - id: aquarium_water_warning_alert
+    alias: "Aquarium: WARNING Water Quality Alert"
+    description: "Push notification when status is Warning"
+    trigger:
+      - platform: state
+        entity_id: sensor.aquarium_water_status
+        to: "Warning"
+    action:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: "⚠️ Aquarium Water Warning"
+          message: >
+            Water quality needs attention.
+            {{ states('input_text.aquarium_ai_notes') }}
+            Tested: {{ states('sensor.aquarium_last_test') }}
+          data:
+            push:
+              sound: "default"
+            tag: "aquarium_warning"
+            color: "#ff9800"
+    mode: single
+
+  # ── ALERT: Ammonia detected (liquid tests only) ─────────────
+  - id: aquarium_ammonia_detected
+    alias: "Aquarium: Ammonia Detected Alert"
+    description: "Dedicated alert when any ammonia is detected by a liquid test"
+    trigger:
+      - platform: state
+        entity_id: sensor.aquarium_ammonia_alert
+        to:
+          - "WARNING"
+          - "DANGER"
+    action:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: >
+            {% if states('sensor.aquarium_ammonia_alert') == 'DANGER' %}
+            🚨 HIGH AMMONIA — Fish at Risk!
+            {% else %}
+            ⚠️ Ammonia Detected in Tank
+            {% endif %}
+          message: >
+            Ammonia reading: {{ states('sensor.aquarium_ammonia') }} ppm
+            Ammonia is toxic to fish — even 0.25 ppm causes stress.
+            Immediate partial water change recommended.
+            {{ states('input_text.aquarium_ai_notes') }}
+          data:
+            push:
+              sound: "default"
+              interruption-level: >
+                {% if states('sensor.aquarium_ammonia_alert') == 'DANGER' %}critical{% else %}active{% endif %}
+            tag: "aquarium_ammonia"
+            color: "#9c27b0"
+    mode: single
+
+  # ── ALERT: Seachem Ammonia Badge changed to Alert/Alarm/Toxic ─
+  - id: aquarium_seachem_badge_alert
+    alias: "Aquarium: Seachem Badge Alert"
+    description: "Notifies when the Seachem Ammonia Badge detects free ammonia"
+    trigger:
+      - platform: state
+        entity_id: sensor.aquarium_seachem_badge
+        to:
+          - "Alert"
+          - "Alarm"
+          - "Toxic"
+    action:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: >
+            {% set s = states('sensor.aquarium_seachem_badge') %}
+            {% if s == 'Toxic' %}🚨 Seachem Badge: TOXIC Ammonia!
+            {% elif s == 'Alarm' %}⚠️ Seachem Badge: ALARM Level Ammonia
+            {% else %}🟡 Seachem Badge: ALERT — Ammonia Detected{% endif %}
+          message: >
+            {% set s = states('sensor.aquarium_seachem_badge') %}
+            {% set badge_attr = state_attr('sensor.aquarium_seachem_badge', 'urgency') %}
+            Seachem badge colour: {{ state_attr('sensor.aquarium_seachem_badge', 'seachem_colour') }}
+            Free ammonia: ~{{ state_attr('sensor.aquarium_seachem_badge', 'free_ammonia_ppm') }} ppm
+            {{ badge_attr }}
+            Tested: {{ states('sensor.aquarium_last_test') }}
+          data:
+            push:
+              sound: "default"
+              interruption-level: >
+                {% if states('sensor.aquarium_seachem_badge') == 'Toxic' %}critical{% else %}active{% endif %}
+            tag: "aquarium_seachem"
+            color: >
+              {% set s = states('sensor.aquarium_seachem_badge') %}
+              {% if s == 'Toxic' %}#f44336
+              {% elif s == 'Alarm' %}#ff9800
+              {% else %}#4caf50{% endif %}
+    mode: single
+
+  # ── REMINDER: Weekly water test ────────────────────────────
+  - id: aquarium_weekly_test_reminder
+    alias: "Aquarium: Weekly Test Reminder"
+    description: "Sunday morning reminder to test aquarium water"
+    trigger:
+      - platform: time
+        at: "10:00:00"
+    condition:
+      - condition: time
+        weekday:
+          - sun
+    action:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: "🐟 Time to Test Your Aquarium"
+          message: >
+            Weekly water test reminder.
+            Last test: {{ states('sensor.aquarium_last_test') }}
+            Open the Aquarium dashboard to upload a test photo.
+    mode: single
+
+  # ── REMINDER: If no test in 10 days ────────────────────────
+  - id: aquarium_overdue_test_reminder
+    alias: "Aquarium: Overdue Test Reminder"
+    description: "Nags you if no test has been done in 10 days"
+    trigger:
+      - platform: time
+        at: "09:00:00"
+    condition:
+      - condition: template
+        value_template: >
+          {% set last = states('input_datetime.aquarium_last_test_time') %}
+          {% if last in ['unknown', 'unavailable', ''] %}true
+          {% else %}
+            {{ (now() - as_datetime(last)).days >= 10 }}
+          {% endif %}
+    action:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: "🐟 Aquarium Test Overdue!"
+          message: >
+            It's been over 10 days since your last water test.
+            Last test: {{ states('sensor.aquarium_last_test') }}
+            Open the Aquarium dashboard to test your water now.
+    mode: single
