@@ -1,0 +1,348 @@
+# 🤖 GEMINI AI DASHBOARD CARDS
+# ─────────────────────────────────────────────────────────────────────────────
+# THREE SECTIONS:
+#   1. Overview card (paste into Overview view)
+#   2. Full Gemini view (new tab)
+#   3. Settings card (paste into Settings view)
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION 1 — OVERVIEW GEMINI STATUS CARD                                ║
+# ║  Paste into Overview view                                                ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+- type: custom:mushroom-template-card
+  primary: "🤖 Gemini AI Analysis"
+  secondary: >
+    {% set status = states('sensor.gemini_analysis_status') %}
+    {{ status }} — Last: {{ state_attr('sensor.gemini_analysis_status', 'last_check') }}
+  icon: mdi:robot
+  icon_color: >
+    {% set status = states('sensor.gemini_analysis_status') %}
+    {% if 'Due' in status or 'Never' in status %} orange
+    {% elif 'Disabled' in status %} grey
+    {% else %} cyan
+    {% endif %}
+  badge_icon: >
+    {% if is_state('binary_sensor.gemini_health_check_due', 'on') %} mdi:alert-circle
+    {% else %} ''
+    {% endif %}
+  badge_color: orange
+  tap_action:
+    action: navigate
+    navigation_path: /lovelace/gemini
+  hold_action:
+    action: call-service
+    service: script.gemini_analyze_snapshot
+    confirmation:
+      text: "Capture snapshot and run Gemini vision analysis?"
+  card_mod:
+    style: |
+      ha-card {
+        grid-column: span 2;
+        background: linear-gradient(135deg, rgba(100,60,180,0.4), rgba(60,30,120,0.3));
+        border: 2px solid rgba(150,100,230,0.3);
+        border-radius: 16px;
+        box-shadow:
+          0 4px 20px rgba(120,80,200,0.2),
+          inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION 2 — FULL GEMINI VIEW                                            ║
+# ║  Add as a NEW VIEW                                                       ║
+# ║  In dashboard raw config:                                                ║
+# ║    - title: Gemini AI                                                    ║
+# ║      path: gemini                                                        ║
+# ║      icon: mdi:robot                                                     ║
+# ║      type: masonry                                                       ║
+# ║      cards:  ← paste all below                                          ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+# ── GEMINI STATUS & CONTROLS ──────────────────────────────────────────────────
+- type: entities
+  title: "🤖 Gemini AI Status"
+  entities:
+    - entity: sensor.gemini_analysis_status
+      name: Analysis Status
+      icon: mdi:state-machine
+    - entity: binary_sensor.gemini_health_check_due
+      name: Health Check Due
+      icon: mdi:clock-alert
+    - entity: input_datetime.gemini_last_health_check
+      name: Last Health Check
+      icon: mdi:clock-check
+    - entity: input_datetime.gemini_last_daily_summary
+      name: Last Daily Summary
+      icon: mdi:calendar-check
+    - type: divider
+    - entity: input_boolean.gemini_fish_health_analysis_enabled
+      name: Auto Health Analysis
+      icon: mdi:fish
+    - entity: input_boolean.gemini_daily_summary_enabled
+      name: Auto Daily Summary
+      icon: mdi:file-document
+    - entity: input_boolean.gemini_water_predictions_enabled
+      name: Water Quality Predictions
+      icon: mdi:water-alert
+    - type: divider
+    - entity: input_number.gemini_health_check_interval
+      name: Health Check Interval
+      icon: mdi:timer
+    - type: divider
+    - type: button
+      name: "📸 Analyze Snapshot Now"
+      action_name: Analyze
+      tap_action:
+        action: call-service
+        service: script.gemini_analyze_snapshot
+        confirmation:
+          text: "Capture and analyze current tank snapshot?"
+    - type: button
+      name: "📋 Generate Weekly Report"
+      action_name: Generate
+      tap_action:
+        action: call-service
+        service: script.gemini_generate_weekly_report
+        confirmation:
+          text: "Generate comprehensive weekly report?"
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(100,60,180,0.4), rgba(60,30,120,0.3));
+        border: 2px solid rgba(150,100,230,0.3);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(120,80,200,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+      }
+
+# ── LATEST FISH HEALTH ANALYSIS ───────────────────────────────────────────────
+- type: markdown
+  title: "🐟 Latest Fish Health Analysis"
+  content: >
+    **Last Check:** {{ states('input_datetime.gemini_last_health_check') | as_timestamp | timestamp_custom('%H:%M on %d %b', true) }}
+    
+    ---
+    
+    {{ states('input_text.gemini_last_health_analysis') }}
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(100,60,180,0.4), rgba(60,30,120,0.3));
+        border: 2px solid rgba(150,100,230,0.3);
+        border-radius: 16px;
+        padding: 12px;
+      }
+      ha-markdown {
+        color: #e0f7fa !important;
+      }
+
+# ── DAILY SUMMARY ─────────────────────────────────────────────────────────────
+- type: markdown
+  title: "📊 Daily Summary"
+  content: >
+    **Generated:** {{ states('input_datetime.gemini_last_daily_summary') | as_timestamp | timestamp_custom('%H:%M on %d %b', true) }}
+    
+    ---
+    
+    {{ states('input_text.gemini_last_daily_summary_text') }}
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(100,60,180,0.4), rgba(60,30,120,0.3));
+        border: 2px solid rgba(150,100,230,0.3);
+        border-radius: 16px;
+        padding: 12px;
+      }
+      ha-markdown {
+        color: #e0f7fa !important;
+      }
+
+# ── WATER QUALITY PREDICTION ──────────────────────────────────────────────────
+- type: markdown
+  title: "🔮 Water Quality Prediction"
+  content: >
+    {{ states('input_text.gemini_water_prediction') }}
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(100,60,180,0.4), rgba(60,30,120,0.3));
+        border: 2px solid rgba(150,100,230,0.3);
+        border-radius: 16px;
+        padding: 12px;
+      }
+      ha-markdown {
+        color: #e0f7fa !important;
+      }
+
+# ── ASK GEMINI CUSTOM QUESTION ────────────────────────────────────────────────
+- type: entities
+  title: "💬 Ask Gemini About Your Tank"
+  entities:
+    - type: custom:text-input-row
+      entity: script.gemini_ask_about_tank
+      name: "Your Question"
+      icon: mdi:chat-question
+    - type: button
+      name: "Ask Gemini"
+      action_name: Ask
+      tap_action:
+        action: call-service
+        service: script.gemini_ask_about_tank
+        service_data:
+          question: "Why are my fish hiding?"  # placeholder — replace with input
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(100,60,180,0.4), rgba(60,30,120,0.3));
+        border: 2px solid rgba(150,100,230,0.3);
+        border-radius: 16px;
+      }
+
+# ── TANK STATUS CONTEXT (for Gemini) ─────────────────────────────────────────
+- type: entities
+  title: "📋 Tank Status (Gemini Context)"
+  entities:
+    - entity: sensor.gemini_tank_state_summary
+      name: Summary Status
+      secondary_info: attribute
+      attribute: full_summary
+    - type: section
+      label: "Live Parameters"
+    - entity: sensor.fish_tank_temperature
+      name: Temperature
+    - entity: sensor.fish_tank_ph
+      name: pH
+    - entity: sensor.fish_tank_ammonia
+      name: Ammonia
+    - entity: sensor.fish_tank_nitrite
+      name: Nitrite
+    - entity: sensor.fish_tank_nitrate
+      name: Nitrate
+    - entity: sensor.fish_tank_dissolved_oxygen
+      name: Dissolved Oxygen
+    - type: section
+      label: "Camera Insights"
+    - entity: sensor.fish_tank_fish_visibility
+      name: Fish Visibility
+    - entity: sensor.fish_tank_activity_score
+      name: Activity Score
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(100,60,180,0.4), rgba(60,30,120,0.3));
+        border: 2px solid rgba(150,100,230,0.3);
+        border-radius: 16px;
+      }
+
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION 3 — SETTINGS CARD                                               ║
+# ║  Paste into Settings view                                                ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+- type: entities
+  title: "🤖 Gemini AI Settings"
+  entities:
+    - type: section
+      label: "Auto-Analysis Settings"
+    - entity: input_boolean.gemini_fish_health_analysis_enabled
+      name: Auto Fish Health Analysis
+      icon: mdi:fish
+    - entity: input_number.gemini_health_check_interval
+      name: Health Check Interval (hours)
+      icon: mdi:timer
+    - entity: input_boolean.gemini_daily_summary_enabled
+      name: Auto Daily Summary (21:00)
+      icon: mdi:file-document
+    - entity: input_boolean.gemini_water_predictions_enabled
+      name: Auto Water Quality Predictions
+      icon: mdi:water-alert
+    - type: section
+      label: "Manual Actions"
+    - type: button
+      name: "📸 Analyze Snapshot Now"
+      action_name: Analyze
+      tap_action:
+        action: call-service
+        service: script.gemini_analyze_snapshot
+    - type: button
+      name: "📋 Generate Weekly Report"
+      action_name: Generate
+      tap_action:
+        action: call-service
+        service: script.gemini_generate_weekly_report
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(100,60,180,0.4), rgba(60,30,120,0.3));
+        border: 2px solid rgba(150,100,230,0.3);
+        border-radius: 16px;
+        margin-bottom: 8px;
+      }
+
+# ── GEMINI SETUP INSTRUCTIONS ─────────────────────────────────────────────────
+- type: markdown
+  content: |
+    ## 🤖 Gemini AI Setup Guide
+    
+    **1. Install Extended Text Integration**
+    - HACS → Integrations → search "Extended OpenAI Conversation"
+    - Click Install
+    - Restart Home Assistant
+    
+    **2. Get Gemini API Key**
+    - Go to: [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
+    - Click "Create API Key"
+    - Copy the key
+    
+    **3. Configure Extended Text**
+    Add this to `configuration.yaml`:
+    
+    ```yaml
+    extended_openai_conversation:
+      - name: Gemini Fish Tank
+        api_key: YOUR_API_KEY_HERE
+        api_base: https://generativelanguage.googleapis.com/v1beta
+        model: gemini-2.0-flash-exp
+        vision_model: gemini-2.0-flash-exp
+    ```
+    
+    **4. Restart HA**
+    
+    **5. Test**
+    - Go to Gemini AI view
+    - Press "Analyze Snapshot Now"
+    - Check notification for results
+    
+    ---
+    
+    ## 💰 Gemini API Free Tier
+    
+    - **15 requests per minute** (more than enough for this use case)
+    - **1 million tokens per day**
+    - Vision model included
+    - **No credit card required**
+    
+    Typical usage: ~20 requests/day = well within free tier.
+    
+    ---
+    
+    ## 🔒 Privacy Note
+    
+    Images and sensor data are sent to Google's Gemini API.
+    Google's terms: data not used to train models, retained for abuse prevention.
+    
+    If privacy is a concern, disable image analysis and use text-only predictions.
+  card_mod:
+    style: |
+      ha-card {
+        background: linear-gradient(135deg, rgba(100,60,180,0.25), rgba(60,30,120,0.2));
+        border: 2px solid rgba(150,100,230,0.25);
+        border-radius: 16px;
+        padding: 8px;
+      }
+      ha-markdown {
+        color: #e0f7fa !important;
+      }
