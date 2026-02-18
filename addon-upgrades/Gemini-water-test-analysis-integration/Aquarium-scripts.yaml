@@ -1,1 +1,120 @@
+###############################################################
+# AQUARIUM WATER TEST — SCRIPTS
+# File: config/packages/aquarium_scripts.yaml
+###############################################################
 
+script:
+  aquarium_analyze_water_test:
+    alias: "Aquarium: Analyze Water Test Image"
+    description: "Sends uploaded image to Gemini and stores parsed results"
+    icon: mdi:fish
+    mode: single
+    sequence:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.aquarium_analysis_running
+
+      - variables:
+          test_kit: "{{ states('input_select.aquarium_test_kit') }}"
+          image_path: "{{ states('input_text.aquarium_last_image_path') }}"
+
+          prompt_strip: >-
+            You are an expert freshwater aquarium water quality analyst.
+            This image shows an API 5-in-1 aquarium test strip for a freshwater tropical fish tank.
+            The strip has 5 coloured pads testing: GH (general hardness), KH (carbonate hardness), pH, Nitrite (NO2), Nitrate (NO3).
+            This strip does NOT test ammonia.
+            Examine each pad colour carefully and match to the API colour chart values:
+            GH: 0/30/60/120/180 ppm. KH: 0/40/80/120/180/240 ppm. pH: 6.2/6.8/7.2/7.8/8.4.
+            Nitrite: 0/0.5/1/3/5 ppm. Nitrate: 0/20/40/80/160/200 ppm.
+            ALSO look anywhere in the image for a Seachem Ammonia Alert badge — a small clear rectangular plastic card with a circular sensor window, often stuck to the tank glass.
+            The sensor colour means: safe=yellow(~0ppm free NH3), alert=green(~0.05ppm), alarm=blue-green(~0.2ppm), toxic=grey/blue-grey(~0.5ppm). If no badge visible use not_present.
+            Respond ONLY with valid JSON, no markdown, no explanation:
+            {"ph":"7.2","nitrite":"0","nitrate":"20","gh":"120","kh":"80","ammonia":"N/A","seachem_badge":"safe","status":"good","notes":"Advice here."}
+            status must be good/warning/danger. seachem_badge must be safe/alert/alarm/toxic/not_present. Use ppm except pH. Unreadable values write unreadable.
+
+          prompt_api_liquid: >-
+            You are an expert freshwater aquarium water quality analyst.
+            This image shows API liquid test kit results for a freshwater tropical fish tank.
+            Tests may include: Ammonia (NH3/NH4+), pH, High Range pH, Nitrite (NO2), Nitrate (NO3), KH, GH.
+            Each test is a tube with coloured water. Match each tube colour to API chart values:
+            Ammonia 0/0.25/0.5/1/2/4/8 ppm. Nitrite 0/0.25/0.5/1/2/5 ppm. Nitrate 0/5/10/20/40/80/160 ppm. pH 6.0-7.6 steps of 0.2.
+            ALSO look anywhere in the image for a Seachem Ammonia Alert badge — a small clear rectangular plastic card with a circular sensor window, often stuck to the tank glass.
+            The sensor colour means: safe=yellow(~0ppm free NH3), alert=green(~0.05ppm), alarm=blue-green(~0.2ppm), toxic=grey/blue-grey(~0.5ppm). If no badge visible use not_present.
+            Respond ONLY with valid JSON, no markdown, no explanation:
+            {"ph":"7.0","nitrite":"0","nitrate":"10","gh":"N/A","kh":"N/A","ammonia":"0","seachem_badge":"safe","status":"good","notes":"Advice here."}
+            status must be good/warning/danger. seachem_badge must be safe/alert/alarm/toxic/not_present. Use ppm except pH. Missing tests write N/A. Unreadable write unreadable.
+
+          prompt_nt_labs: >-
+            You are an expert freshwater aquarium water quality analyst.
+            This image shows NT Labs liquid test kit results for a freshwater tropical fish tank.
+            NT Labs tests use colour comparators. Tests may include: Ammonia, pH, Nitrite, Nitrate, KH, GH.
+            NT Labs ranges: Ammonia 0/0.25/0.5/1/2/4 ppm. Nitrite 0/0.1/0.25/0.5/1/2 ppm. Nitrate 0/10/25/50/100 ppm. pH 5.5-8.5.
+            Compare each vial colour to the NT Labs chart and pick the closest value.
+            ALSO look anywhere in the image for a Seachem Ammonia Alert badge — a small clear rectangular plastic card with a circular sensor window, often stuck to the tank glass.
+            The sensor colour means: safe=yellow(~0ppm free NH3), alert=green(~0.05ppm), alarm=blue-green(~0.2ppm), toxic=grey/blue-grey(~0.5ppm). If no badge visible use not_present.
+            Respond ONLY with valid JSON, no markdown, no explanation:
+            {"ph":"7.4","nitrite":"0","nitrate":"25","gh":"150","kh":"100","ammonia":"0","seachem_badge":"safe","status":"warning","notes":"Advice here."}
+            status must be good/warning/danger. seachem_badge must be safe/alert/alarm/toxic/not_present. Use ppm except pH. Missing tests write N/A. Unreadable write unreadable.
+
+          selected_prompt: >
+            {% if 'Strip' in test_kit %}{{ prompt_strip }}
+            {% elif 'NT Labs' in test_kit %}{{ prompt_nt_labs }}
+            {% else %}{{ prompt_api_liquid }}{% endif %}
+
+      - action: google_generative_ai_conversation.generate_content
+        data:
+          prompt: "{{ selected_prompt }}"
+          filenames:
+            - "{{ image_path }}"
+        response_variable: gemini_response
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.aquarium_last_analysis_raw
+        data:
+          value: "{{ gemini_response.text | trim }}"
+
+      - variables:
+          parsed_notes: >
+            {% set raw = gemini_response.text | trim %}
+            {% if raw not in ['', 'unknown', 'unavailable'] %}
+              {% set parsed = raw | from_json %}
+              {{ parsed.get('notes', 'No advice provided.') }}
+            {% else %}
+              Analysis failed — check the image is clear and try again.
+            {% endif %}
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.aquarium_ai_notes
+        data:
+          value: "{{ parsed_notes }}"
+
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.aquarium_last_test_time
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.aquarium_analysis_running
+
+  aquarium_clear_results:
+    alias: "Aquarium: Clear Test Results"
+    icon: mdi:refresh
+    mode: single
+    sequence:
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.aquarium_last_analysis_raw
+        data:
+          value: ""
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.aquarium_ai_notes
+        data:
+          value: "No test run yet. Upload a photo to get started."
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.aquarium_analysis_running
